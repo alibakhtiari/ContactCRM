@@ -15,23 +15,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const fetchUserData = async (userId: string) => {
     try {
       console.log('Fetching user data for:', userId);
-      const profile = await ContactService.fetchUserProfile(userId);
-      console.log('Profile from ContactService:', profile);
+      
+      // Direct query instead of using ContactService
+      const { data: profile, error: profileError } = await supabase
+        .from('user_profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+      
+      console.log('Direct profile query result:', { profile, profileError });
+      
+      if (profileError) {
+        console.error('Profile fetch error:', profileError);
+        return;
+      }
       
       if (profile) {
+        console.log('Setting userProfile to:', profile);
         setUserProfile(profile);
-        console.log('Set userProfile in state:', profile);
         
         // Fetch organization data
-        const { data: org } = await supabase
-          .from('organizations')
-          .select('*')
-          .eq('id', profile.org_id)
-          .single();
-        
-        console.log('Organization data:', org);
-        if (org) {
-          setOrganization(org);
+        if (profile.org_id) {
+          const { data: org, error: orgError } = await supabase
+            .from('organizations')
+            .select('*')
+            .eq('id', profile.org_id)
+            .single();
+          
+          console.log('Organization query result:', { org, orgError });
+          if (org && !orgError) {
+            setOrganization(org);
+          }
         }
       }
     } catch (error) {
