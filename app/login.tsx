@@ -17,15 +17,14 @@ import { useAuth } from '../hooks/useAuth';
 import { router } from 'expo-router';
 
 export default function LoginScreen() {
-  const [isSignUp, setIsSignUp] = useState(false);
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [name, setName] = useState('');
-  const [orgName, setOrgName] = useState('');
+
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const insets = useSafeAreaInsets();
-  const { signIn, signUp } = useAuth();
+  const { signIn } = useAuth();
 
   // Cross-platform alert
   const [alertConfig, setAlertConfig] = useState<{
@@ -49,33 +48,17 @@ export default function LoginScreen() {
       return;
     }
 
-    if (isSignUp && !name.trim()) {
-      showAlert('Error', 'Please enter your name');
-      return;
-    }
+
 
     setLoading(true);
 
     try {
-      let result;
-      if (isSignUp) {
-        result = await signUp(email.trim(), password, name.trim(), orgName.trim() || undefined);
-      } else {
-        result = await signIn(email.trim(), password);
-      }
+      const result = await signIn(email.trim(), password);
 
       if (result.error) {
         showAlert('Error', result.error.message);
       } else {
-        if (isSignUp) {
-          showAlert(
-            'Success', 
-            'Account created successfully! Please check your email to verify your account.',
-            () => setIsSignUp(false)
-          );
-        } else {
-          router.replace('/(tabs)');
-        }
+        router.replace('/(tabs)');
       }
     } catch (error: any) {
       showAlert('Error', error.message || 'An unexpected error occurred');
@@ -84,13 +67,7 @@ export default function LoginScreen() {
     }
   };
 
-  const toggleMode = () => {
-    setIsSignUp(!isSignUp);
-    setEmail('');
-    setPassword('');
-    setName('');
-    setOrgName('');
-  };
+
 
   return (
     <>
@@ -103,39 +80,11 @@ export default function LoginScreen() {
             <MaterialIcons name="contacts" size={60} color="#007AFF" />
             <Text style={styles.title}>Contact CRM</Text>
             <Text style={styles.subtitle}>
-              {isSignUp ? 'Create your team account' : 'Sign in to your account'}
+              Sign in to your account
             </Text>
           </View>
 
           <View style={styles.form}>
-            {isSignUp && (
-              <>
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Name</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={name}
-                    onChangeText={setName}
-                    placeholder="Enter your full name"
-                    autoCapitalize="words"
-                    editable={!loading}
-                  />
-                </View>
-
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Organization Name (Optional)</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={orgName}
-                    onChangeText={setOrgName}
-                    placeholder="Enter organization name"
-                    autoCapitalize="words"
-                    editable={!loading}
-                  />
-                </View>
-              </>
-            )}
-
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Email</Text>
               <TextInput
@@ -179,17 +128,7 @@ export default function LoginScreen() {
               disabled={loading}
             >
               <Text style={styles.authButtonText}>
-                {loading ? (isSignUp ? 'Creating Account...' : 'Signing In...') : (isSignUp ? 'Create Account' : 'Sign In')}
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity 
-              style={styles.toggleButton}
-              onPress={toggleMode}
-              disabled={loading}
-            >
-              <Text style={styles.toggleText}>
-                {isSignUp ? 'Already have an account? Sign In' : 'Do not have an account? Sign Up'}
+                {loading ? 'Signing In...' : 'Sign In'}
               </Text>
             </TouchableOpacity>
           </View>

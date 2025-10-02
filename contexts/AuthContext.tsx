@@ -40,20 +40,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const signUp = async (email: string, password: string, name: string, orgName?: string) => {
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          name,
-          org_name: orgName
-        }
-      }
-    });
 
-    return { data, error };
-  };
 
   const signIn = async (email: string, password: string) => {
     const { data, error } = await supabase.auth.signInWithPassword({
@@ -108,7 +95,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     userProfile,
     organization,
     loading,
-    signUp,
     signIn,
     signOut,
     refreshProfile

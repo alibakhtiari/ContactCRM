@@ -6,20 +6,27 @@ import {
   FlatList,
   RefreshControl,
   TouchableOpacity,
-  Platform
+  Platform,
+  Alert,
+  Modal
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../services/supabaseClient';
 import { UserProfile } from '../../constants/types';
+import { AddUserForm } from '../../components/AddUserForm';
+import { UserService } from '../../services/userService';
 
 interface TeamMemberCardProps {
   member: UserProfile;
   isCurrentUser: boolean;
+  isCurrentUserOwner: boolean;
+  onEdit?: (member: UserProfile) => void;
+  onDelete?: (member: UserProfile) => void;
 }
 
-function TeamMemberCard({ member, isCurrentUser }: TeamMemberCardProps) {
+function TeamMemberCard({ member, isCurrentUser, isCurrentUserOwner, onEdit, onDelete }: TeamMemberCardProps) {
   const getRoleColor = (role: string) => {
     return role === 'Owner' ? '#007AFF' : '#8E8E93';
   };
@@ -49,9 +56,29 @@ function TeamMemberCard({ member, isCurrentUser }: TeamMemberCardProps) {
         </Text>
       </View>
 
-      <View style={styles.memberStats}>
-        <MaterialIcons name="fiber-manual-record" size={8} color="#34C759" />
-        <Text style={styles.statusText}>Active</Text>
+      <View style={styles.memberActions}>
+        <View style={styles.memberStats}>
+          <MaterialIcons name="fiber-manual-record" size={8} color="#34C759" />
+          <Text style={styles.statusText}>Active</Text>
+        </View>
+        
+        {isCurrentUserOwner && !isCurrentUser && (
+          <View style={styles.actionButtons}>
+            <TouchableOpacity 
+              style={styles.actionButton}
+              onPress={() => onEdit?.(member)}
+            >
+              <MaterialIcons name="edit" size={18} color="#007AFF" />
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.actionButton}
+              onPress={() => onDelete?.(member)}
+            >
+              <MaterialIcons name="delete" size={18} color="#FF3B30" />
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
     </View>
   );
@@ -60,8 +87,29 @@ function TeamMemberCard({ member, isCurrentUser }: TeamMemberCardProps) {
 export default function TeamScreen() {
   const [teamMembers, setTeamMembers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(false);
+  const [showAddUserForm, setShowAddUserForm] = useState(false);
   const insets = useSafeAreaInsets();
   const { userProfile, organization } = useAuth();
+
+  // Cross-platform alert
+  const [alertConfig, setAlertConfig] = useState<{
+    visible: boolean;
+    title: string;
+    message: string;
+    buttons?: Array<{ text: string; onPress?: () => void; style?: 'default' | 'cancel' | 'destructive' }>;
+  }>({ visible: false, title: '', message: '' });
+
+  const showAlert = (
+    title: string, 
+    message: string, 
+    buttons?: Array<{ text: string; onPress?: () => void; style?: 'default' | 'cancel' | 'destructive' }>
+  ) => {
+    if (Platform.OS === 'web') {
+      setAlertConfig({ visible: true, title, message, buttons });
+    } else {
+      Alert.alert(title, message, buttons);
+    }
+  };
 
   const loadTeamMembers = async () => {
     if (!organization?.id) return;
@@ -88,6 +136,50 @@ export default function TeamScreen() {
     }
   };
 
+  const handleEditMember = (member: UserProfile) => {
+    const newRole = member.role === 'Owner' ? 'User' : 'Owner';
+    showAlert(
+      'Change Role',
+      `Change ${member.name}'s role to ${newRole}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Change Role', 
+          onPress: async () => {
+            const result = await UserService.updateUserRole(member.id, newRole);
+            if (result.success) {
+              loadTeamMembers();
+            } else {
+              showAlert('Error', result.error || 'Failed to update role');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleDeleteMember = (member: UserProfile) => {
+    showAlert(
+      'Remove Team Member',
+      `Are you sure you want to remove ${member.name} from the team? This action cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Remove', 
+          style: 'destructive',
+          onPress: async () => {
+            const result = await UserService.deleteTeamMember(member.id);
+            if (result.success) {
+              loadTeamMembers();
+            } else {
+              showAlert('Error', result.error || 'Failed to remove team member');
+            }
+          }
+        }
+      ]
+    );
+  };
+
   useEffect(() => {
     loadTeamMembers();
   }, [organization?.id]);
@@ -96,6 +188,9 @@ export default function TeamScreen() {
     <TeamMemberCard
       member={item}
       isCurrentUser={item.id === userProfile?.id}
+      isCurrentUserOwner={userProfile?.role === 'Owner'}
+      onEdit={handleEditMember}
+      onDelete={handleDeleteMember}
     />
   );
 
@@ -119,9 +214,20 @@ export default function TeamScreen() {
             {organization?.name} • {teamMembers.length} {teamMembers.length === 1 ? 'member' : 'members'}
           </Text>
         </View>
-        <TouchableOpacity style={styles.refreshButton} onPress={loadTeamMembers}>
-          <MaterialIcons name="refresh" size={24} color="#007AFF" />
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          {userProfile?.role === 'Owner' && (
+            <TouchableOpacity 
+              style={styles.addButton} 
+              onPress={() => setShowAddUserForm(true)}
+            >
+              <MaterialIcons name="person-add" size={24} color="#007AFF" />
+            </TouchableOpacity>
+          )}
+          
+          <TouchableOpacity style={styles.refreshButton} onPress={loadTeamMembers}>
+            <MaterialIcons name="refresh" size={24} color="#007AFF" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Organization Info */}
@@ -158,6 +264,52 @@ export default function TeamScreen() {
         ]}
         style={styles.list}
       />
+
+      {/* Add User Form */}
+      <AddUserForm
+        visible={showAddUserForm}
+        onSuccess={() => {
+          setShowAddUserForm(false);
+          loadTeamMembers();
+        }}
+        onCancel={() => setShowAddUserForm(false)}
+      />
+
+      {/* Web Alert Modal */}
+      {Platform.OS === 'web' && (
+        <Modal visible={alertConfig.visible} transparent animationType="fade">
+          <View style={styles.alertOverlay}>
+            <View style={styles.alertContainer}>
+              <Text style={styles.alertTitle}>{alertConfig.title}</Text>
+              <Text style={styles.alertMessage}>{alertConfig.message}</Text>
+              <View style={styles.alertButtons}>
+                {alertConfig.buttons?.map((button, index) => (
+                  <TouchableOpacity
+                    key={index}
+                    style={[
+                      styles.alertButton,
+                      button.style === 'destructive' && styles.destructiveButton,
+                      button.style === 'cancel' && styles.cancelButton
+                    ]}
+                    onPress={() => {
+                      button.onPress?.();
+                      setAlertConfig(prev => ({ ...prev, visible: false }));
+                    }}
+                  >
+                    <Text style={[
+                      styles.alertButtonText,
+                      button.style === 'destructive' && styles.destructiveButtonText,
+                      button.style === 'cancel' && styles.cancelButtonText
+                    ]}>
+                      {button.text}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          </View>
+        </Modal>
+      )}
     </View>
   );
 }
@@ -184,6 +336,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#8E8E93',
     marginTop: 2,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  addButton: {
+    padding: 8,
   },
   refreshButton: {
     padding: 8,
@@ -290,14 +449,25 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     marginTop: 4,
   },
+  memberActions: {
+    alignItems: 'flex-end',
+  },
   memberStats: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
+    marginBottom: 8,
   },
   statusText: {
     fontSize: 12,
     color: '#34C759',
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  actionButton: {
+    padding: 6,
   },
   emptyState: {
     flex: 1,
@@ -317,5 +487,54 @@ const styles = StyleSheet.create({
     color: '#8E8E93',
     textAlign: 'center',
     lineHeight: 22,
+  },
+  // Web Alert Styles
+  alertOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  alertContainer: {
+    backgroundColor: 'white',
+    padding: 20,
+    borderRadius: 8,
+    minWidth: 280,
+  },
+  alertTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 10,
+  },
+  alertMessage: {
+    fontSize: 16,
+    marginBottom: 20,
+  },
+  alertButtons: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 10,
+  },
+  alertButton: {
+    backgroundColor: '#007AFF',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 4,
+  },
+  alertButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
+  },
+  destructiveButton: {
+    backgroundColor: '#FF3B30',
+  },
+  destructiveButtonText: {
+    color: 'white',
+  },
+  cancelButton: {
+    backgroundColor: '#8E8E93',
+  },
+  cancelButtonText: {
+    color: 'white',
   },
 });

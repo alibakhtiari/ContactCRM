@@ -43,7 +43,6 @@ export interface AuthContextType {
   userProfile: UserProfile | null;
   organization: Organization | null;
   loading: boolean;
-  signUp: (email: string, password: string, name: string, orgName?: string) => Promise<{ data: any; error: any }>;
   signIn: (email: string, password: string) => Promise<{ data: any; error: any }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
