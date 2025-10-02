@@ -134,17 +134,22 @@ export class ContactService {
   }
 
   static async fetchUserProfile(userId: string): Promise<UserProfile | null> {
+    console.log('ContactService.fetchUserProfile called with userId:', userId);
+    
     const { data, error } = await supabase
       .from('user_profiles')
       .select('*')
       .eq('id', userId)
       .single();
 
+    console.log('fetchUserProfile result:', { data, error });
+    
     if (error) {
       console.error('Error fetching user profile:', error);
       return null;
     }
 
+    console.log('Returning user profile data:', data);
     return data;
   }
 

@@ -89,7 +89,7 @@ export default function TeamScreen() {
   const [loading, setLoading] = useState(false);
   const [showAddUserForm, setShowAddUserForm] = useState(false);
   const insets = useSafeAreaInsets();
-  const { userProfile, organization } = useAuth();
+  const { userProfile, organization, refreshProfile } = useAuth();
 
   // Cross-platform alert
   const [alertConfig, setAlertConfig] = useState<{
@@ -216,7 +216,21 @@ export default function TeamScreen() {
         </View>
         <View style={styles.headerActions}>
           {/* Debug info - remove later */}
-          <Text style={styles.debugText}>Role: {userProfile?.role}</Text>
+          <View style={styles.debugInfo}>
+            <Text style={styles.debugText}>User ID: {userProfile?.id?.substring(0, 8)}...</Text>
+            <Text style={styles.debugText}>Role: "{userProfile?.role || 'EMPTY'}"</Text>
+            <Text style={styles.debugText}>Org: {organization?.name || 'None'}</Text>
+          </View>
+          
+          <TouchableOpacity 
+            style={styles.debugRefreshButton} 
+            onPress={async () => {
+              console.log('Manual refresh triggered');
+              await refreshProfile();
+            }}
+          >
+            <Text style={styles.debugRefreshText}>Refresh Profile</Text>
+          </TouchableOpacity>
           
           {userProfile?.role === 'Owner' && (
             <TouchableOpacity 
@@ -346,12 +360,28 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
   },
-  debugText: {
-    fontSize: 12,
-    color: '#FF3B30',
+  debugInfo: {
     backgroundColor: '#fff',
-    padding: 4,
+    padding: 8,
     borderRadius: 4,
+    borderWidth: 1,
+    borderColor: '#FF3B30',
+  },
+  debugText: {
+    fontSize: 11,
+    color: '#FF3B30',
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+  },
+  debugRefreshButton: {
+    backgroundColor: '#FF3B30',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 4,
+  },
+  debugRefreshText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
   },
   addTeamButton: {
     flexDirection: 'row',

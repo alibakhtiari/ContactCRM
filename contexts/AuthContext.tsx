@@ -14,9 +14,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const fetchUserData = async (userId: string) => {
     try {
+      console.log('Fetching user data for:', userId);
       const profile = await ContactService.fetchUserProfile(userId);
+      console.log('Profile from ContactService:', profile);
+      
       if (profile) {
         setUserProfile(profile);
+        console.log('Set userProfile in state:', profile);
         
         // Fetch organization data
         const { data: org } = await supabase
@@ -25,6 +29,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           .eq('id', profile.org_id)
           .single();
         
+        console.log('Organization data:', org);
         if (org) {
           setOrganization(org);
         }
@@ -36,6 +41,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refreshProfile = async () => {
     if (user) {
+      console.log('Refreshing profile for user:', user.id);
       await fetchUserData(user.id);
     }
   };
@@ -60,8 +66,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
+    console.log('Auth useEffect - getting initial session');
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
+      console.log('Initial session:', session?.user?.id);
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
@@ -73,6 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        console.log('Auth state change:', event, session?.user?.id);
         setSession(session);
         setUser(session?.user ?? null);
         
