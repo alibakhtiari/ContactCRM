@@ -215,12 +215,16 @@ export default function TeamScreen() {
           </Text>
         </View>
         <View style={styles.headerActions}>
+          {/* Debug info - remove later */}
+          <Text style={styles.debugText}>Role: {userProfile?.role}</Text>
+          
           {userProfile?.role === 'Owner' && (
             <TouchableOpacity 
-              style={styles.addButton} 
+              style={styles.addTeamButton} 
               onPress={() => setShowAddUserForm(true)}
             >
-              <MaterialIcons name="person-add" size={24} color="#007AFF" />
+              <MaterialIcons name="person-add" size={20} color="#fff" />
+              <Text style={styles.addTeamText}>Add Member</Text>
             </TouchableOpacity>
           )}
           
@@ -339,7 +343,29 @@ const styles = StyleSheet.create({
   },
   headerActions: {
     flexDirection: 'row',
-    gap: 8,
+    alignItems: 'center',
+    gap: 12,
+  },
+  debugText: {
+    fontSize: 12,
+    color: '#FF3B30',
+    backgroundColor: '#fff',
+    padding: 4,
+    borderRadius: 4,
+  },
+  addTeamButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#007AFF',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    gap: 6,
+  },
+  addTeamText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
   addButton: {
     padding: 8,
