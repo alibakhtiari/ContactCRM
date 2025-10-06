@@ -89,7 +89,7 @@ export default function TeamScreen() {
   const [loading, setLoading] = useState(false);
   const [showAddUserForm, setShowAddUserForm] = useState(false);
   const insets = useSafeAreaInsets();
-  const { userProfile, refreshProfile } = useAuth();
+  const { userProfile, refreshProfile, signOut } = useAuth();
 
   // Cross-platform alert
   const [alertConfig, setAlertConfig] = useState<{
@@ -225,6 +225,26 @@ export default function TeamScreen() {
           <TouchableOpacity style={styles.refreshButton} onPress={loadTeamMembers}>
             <MaterialIcons name="refresh" size={24} color="#007AFF" />
           </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.logoutButton} 
+            onPress={() => {
+              showAlert(
+                'Logout',
+                'Are you sure you want to logout?',
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  { 
+                    text: 'Logout', 
+                    style: 'destructive',
+                    onPress: signOut
+                  }
+                ]
+              );
+            }}
+          >
+            <MaterialIcons name="logout" size={24} color="#FF3B30" />
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -342,6 +362,9 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   refreshButton: {
+    padding: 8,
+  },
+  logoutButton: {
     padding: 8,
   },
   sectionTitle: {
