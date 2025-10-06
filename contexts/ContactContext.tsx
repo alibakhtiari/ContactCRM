@@ -7,20 +7,20 @@ import { useAuth } from '../hooks/useAuth';
 export const ContactContext = createContext<ContactContextType | undefined>(undefined);
 
 export function ContactProvider({ children }: { children: ReactNode }) {
-  const { user, userProfile, organization } = useAuth();
+  const { user, userProfile } = useAuth();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [calls, setCalls] = useState<Call[]>([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
   const loadData = async () => {
-    if (!organization?.id) return;
+    if (!userProfile?.id) return;
 
     try {
       setLoading(true);
       const [contactsData, callsData] = await Promise.all([
-        ContactService.fetchContacts(organization.id),
-        ContactService.fetchCalls(organization.id)
+        ContactService.fetchContacts(),
+        ContactService.fetchCalls()
       ]);
       
       setContacts(contactsData);
@@ -33,7 +33,7 @@ export function ContactProvider({ children }: { children: ReactNode }) {
   };
 
   const refreshContacts = async () => {
-    if (!organization?.id) return;
+    if (!userProfile?.id) return;
 
     try {
       setRefreshing(true);
@@ -44,14 +44,13 @@ export function ContactProvider({ children }: { children: ReactNode }) {
   };
 
   const addContact = async (name: string, phoneNumber: string) => {
-    if (!organization?.id || !user?.id) {
+    if (!user?.id) {
       return { success: false, error: 'User not authenticated' };
     }
 
     const result = await ContactService.createContact(
       name,
       phoneNumber,
-      organization.id,
       user.id
     );
 
@@ -92,19 +91,18 @@ export function ContactProvider({ children }: { children: ReactNode }) {
     startTime: Date,
     duration: number = 0
   ) => {
-    if (!organization?.id || !user?.id) return;
+    if (!user?.id) return;
 
     await ContactService.logCall(
       phoneNumber,
       direction,
       startTime,
-      organization.id,
       user.id,
       duration
     );
 
     // Refresh calls data
-    const callsData = await ContactService.fetchCalls(organization.id);
+    const callsData = await ContactService.fetchCalls();
     setCalls(callsData);
   };
 
@@ -113,7 +111,7 @@ export function ContactProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    if (organization?.id) {
+    if (userProfile?.id) {
       loadData();
 
       // Set up real-time subscriptions
@@ -124,8 +122,7 @@ export function ContactProvider({ children }: { children: ReactNode }) {
           {
             event: '*',
             schema: 'public',
-            table: 'contacts',
-            filter: `org_id=eq.${organization.id}`
+            table: 'contacts'
           },
           () => {
             loadData();
@@ -140,11 +137,10 @@ export function ContactProvider({ children }: { children: ReactNode }) {
           {
             event: '*',
             schema: 'public',
-            table: 'calls',
-            filter: `org_id=eq.${organization.id}`
+            table: 'calls'
           },
           () => {
-            ContactService.fetchCalls(organization.id).then(setCalls);
+            ContactService.fetchCalls().then(setCalls);
           }
         )
         .subscribe();
@@ -154,7 +150,7 @@ export function ContactProvider({ children }: { children: ReactNode }) {
         callsSubscription.unsubscribe();
       };
     }
-  }, [organization?.id]);
+  }, [userProfile?.id]);
 
   const value = {
     contacts,

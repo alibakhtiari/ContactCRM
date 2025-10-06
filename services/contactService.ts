@@ -2,11 +2,10 @@ import { supabase } from './supabaseClient';
 import { Contact, Call, UserProfile } from '../constants/types';
 
 export class ContactService {
-  static async fetchContacts(orgId: string): Promise<Contact[]> {
+  static async fetchContacts(): Promise<Contact[]> {
     const { data, error } = await supabase
       .from('contacts')
       .select('*')
-      .eq('org_id', orgId)
       .order('name');
 
     if (error) {
@@ -20,7 +19,6 @@ export class ContactService {
   static async createContact(
     name: string, 
     phoneNumber: string, 
-    orgId: string, 
     userId: string
   ): Promise<{ success: boolean; error?: string; data?: Contact }> {
     const { data, error } = await supabase
@@ -28,7 +26,6 @@ export class ContactService {
       .insert({
         name: name.trim(),
         phone_number: phoneNumber.trim(),
-        org_id: orgId,
         created_by_user_id: userId
       })
       .select()
@@ -36,7 +33,7 @@ export class ContactService {
 
     if (error) {
       if (error.code === '23505') { // Unique constraint violation
-        return { success: false, error: 'Phone number already exists in your organization' };
+        return { success: false, error: 'Phone number already exists' };
       }
       return { success: false, error: error.message };
     }
@@ -62,7 +59,7 @@ export class ContactService {
 
     if (error) {
       if (error.code === '23505') {
-        return { success: false, error: 'Phone number already exists in your organization' };
+        return { success: false, error: 'Phone number already exists' };
       }
       return { success: false, error: error.message };
     }
@@ -83,11 +80,10 @@ export class ContactService {
     return { success: true };
   }
 
-  static async fetchCalls(orgId: string): Promise<Call[]> {
+  static async fetchCalls(): Promise<Call[]> {
     const { data, error } = await supabase
       .from('calls')
       .select('*')
-      .eq('org_id', orgId)
       .order('start_time', { ascending: false });
 
     if (error) {
@@ -102,7 +98,6 @@ export class ContactService {
     phoneNumber: string,
     direction: 'incoming' | 'outgoing',
     startTime: Date,
-    orgId: string,
     userId: string,
     duration: number = 0
   ): Promise<{ success: boolean; error?: string }> {
@@ -110,14 +105,12 @@ export class ContactService {
     const { data: contact } = await supabase
       .from('contacts')
       .select('id')
-      .eq('org_id', orgId)
       .eq('phone_number', phoneNumber)
       .single();
 
     const { error } = await supabase
       .from('calls')
       .insert({
-        org_id: orgId,
         user_id: userId,
         contact_id: contact?.id || null,
         phone_number: phoneNumber,

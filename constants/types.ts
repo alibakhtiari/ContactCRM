@@ -1,13 +1,5 @@
-export interface Organization {
-  id: string;
-  name: string;
-  created_at: string;
-  updated_at: string;
-}
-
 export interface UserProfile {
   id: string;
-  org_id: string;
   name: string;
   email: string;
   role: 'Owner' | 'User';
@@ -17,7 +9,6 @@ export interface UserProfile {
 
 export interface Contact {
   id: string;
-  org_id: string;
   name: string;
   phone_number: string;
   created_by_user_id: string;
@@ -27,7 +18,6 @@ export interface Contact {
 
 export interface Call {
   id: string;
-  org_id: string;
   contact_id: string | null;
   user_id: string;
   phone_number: string;
@@ -41,7 +31,6 @@ export interface AuthContextType {
   user: any | null;
   session: any | null;
   userProfile: UserProfile | null;
-  organization: Organization | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ data: any; error: any }>;
   signOut: () => Promise<void>;

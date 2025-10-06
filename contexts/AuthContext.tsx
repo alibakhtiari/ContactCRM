@@ -1,7 +1,6 @@
 import React, { createContext, useEffect, useState, ReactNode } from 'react';
 import { supabase } from '../services/supabaseClient';
-import { ContactService } from '../services/contactService';
-import { AuthContextType, UserProfile, Organization } from '../constants/types';
+import { AuthContextType, UserProfile } from '../constants/types';
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -9,7 +8,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<any>(null);
   const [session, setSession] = useState<any>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-  const [organization, setOrganization] = useState<Organization | null>(null);
   const [loading, setLoading] = useState(true);
 
   const fetchUserData = async (userId: string) => {
@@ -33,20 +31,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (profile) {
         console.log('Setting userProfile to:', profile);
         setUserProfile(profile);
-        
-        // Fetch organization data
-        if (profile.org_id) {
-          const { data: org, error: orgError } = await supabase
-            .from('organizations')
-            .select('*')
-            .eq('id', profile.org_id)
-            .single();
-          
-          console.log('Organization query result:', { org, orgError });
-          if (org && !orgError) {
-            setOrganization(org);
-          }
-        }
       }
     } catch (error) {
       console.error('Error fetching user data:', error);
@@ -76,7 +60,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
     setSession(null);
     setUserProfile(null);
-    setOrganization(null);
   };
 
   useEffect(() => {
@@ -103,7 +86,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           await fetchUserData(session.user.id);
         } else {
           setUserProfile(null);
-          setOrganization(null);
         }
         setLoading(false);
       }
@@ -116,7 +98,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     user,
     session,
     userProfile,
-    organization,
     loading,
     signIn,
     signOut,

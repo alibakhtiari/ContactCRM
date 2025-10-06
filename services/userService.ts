@@ -9,33 +9,34 @@ export class UserService {
     role: 'Owner' | 'User' = 'User'
   ): Promise<{ success: boolean; error?: string; data?: UserProfile }> {
     try {
-      const { data, error } = await supabase.rpc('create_team_member', {
-        member_email: email,
-        member_password: password,
-        member_name: name,
-        member_role: role
+      // Create auth user first
+      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true
       });
 
-      if (error) {
-        return { success: false, error: error.message };
+      if (authError) {
+        return { success: false, error: authError.message };
       }
 
-      if (data.success) {
-        // Fetch the created user profile
-        const { data: profileData, error: profileError } = await supabase
-          .from('user_profiles')
-          .select('*')
-          .eq('id', data.user_id)
-          .single();
+      // Create user profile
+      const { data: profileData, error: profileError } = await supabase
+        .from('user_profiles')
+        .insert({
+          id: authData.user.id,
+          name,
+          email,
+          role
+        })
+        .select()
+        .single();
 
-        if (profileError) {
-          return { success: false, error: profileError.message };
-        }
-
-        return { success: true, data: profileData };
-      } else {
-        return { success: false, error: data.error };
+      if (profileError) {
+        return { success: false, error: profileError.message };
       }
+
+      return { success: true, data: profileData };
     } catch (error: any) {
       return { success: false, error: error.message };
     }

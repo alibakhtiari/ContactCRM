@@ -89,7 +89,7 @@ export default function TeamScreen() {
   const [loading, setLoading] = useState(false);
   const [showAddUserForm, setShowAddUserForm] = useState(false);
   const insets = useSafeAreaInsets();
-  const { userProfile, organization, refreshProfile } = useAuth();
+  const { userProfile, refreshProfile } = useAuth();
 
   // Cross-platform alert
   const [alertConfig, setAlertConfig] = useState<{
@@ -112,14 +112,11 @@ export default function TeamScreen() {
   };
 
   const loadTeamMembers = async () => {
-    if (!organization?.id) return;
-
     try {
       setLoading(true);
       const { data, error } = await supabase
         .from('user_profiles')
         .select('*')
-        .eq('org_id', organization.id)
         .order('role', { ascending: false }) // Owners first
         .order('name');
 
@@ -182,7 +179,7 @@ export default function TeamScreen() {
 
   useEffect(() => {
     loadTeamMembers();
-  }, [organization?.id]);
+  }, []);
 
   const renderTeamMember = ({ item }: { item: UserProfile }) => (
     <TeamMemberCard
@@ -211,27 +208,10 @@ export default function TeamScreen() {
         <View>
           <Text style={styles.title}>Team</Text>
           <Text style={styles.subtitle}>
-            {organization?.name} • {teamMembers.length} {teamMembers.length === 1 ? 'member' : 'members'}
+            {teamMembers.length} {teamMembers.length === 1 ? 'member' : 'members'}
           </Text>
         </View>
         <View style={styles.headerActions}>
-          {/* Debug info - remove later */}
-          <View style={styles.debugInfo}>
-            <Text style={styles.debugText}>User ID: {userProfile?.id?.substring(0, 8)}...</Text>
-            <Text style={styles.debugText}>Role: "{userProfile?.role || 'EMPTY'}"</Text>
-            <Text style={styles.debugText}>Org: {organization?.name || 'None'}</Text>
-          </View>
-          
-          <TouchableOpacity 
-            style={styles.debugRefreshButton} 
-            onPress={async () => {
-              console.log('Manual refresh triggered');
-              await refreshProfile();
-            }}
-          >
-            <Text style={styles.debugRefreshText}>Refresh Profile</Text>
-          </TouchableOpacity>
-          
           {userProfile?.role === 'Owner' && (
             <TouchableOpacity 
               style={styles.addTeamButton} 
@@ -247,19 +227,6 @@ export default function TeamScreen() {
           </TouchableOpacity>
         </View>
       </View>
-
-      {/* Organization Info */}
-      {organization && (
-        <View style={styles.orgCard}>
-          <MaterialIcons name="business" size={24} color="#007AFF" />
-          <View style={styles.orgInfo}>
-            <Text style={styles.orgName}>{organization.name}</Text>
-            <Text style={styles.orgCreated}>
-              Created {new Date(organization.created_at).toLocaleDateString()}
-            </Text>
-          </View>
-        </View>
-      )}
 
       {/* Team Members List */}
       <Text style={styles.sectionTitle}>Team Members</Text>
@@ -360,29 +327,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
   },
-  debugInfo: {
-    backgroundColor: '#fff',
-    padding: 8,
-    borderRadius: 4,
-    borderWidth: 1,
-    borderColor: '#FF3B30',
-  },
-  debugText: {
-    fontSize: 11,
-    color: '#FF3B30',
-    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
-  },
-  debugRefreshButton: {
-    backgroundColor: '#FF3B30',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 4,
-  },
-  debugRefreshText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '600',
-  },
   addTeamButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -397,45 +341,8 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
-  addButton: {
-    padding: 8,
-  },
   refreshButton: {
     padding: 8,
-  },
-  orgCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    marginHorizontal: 16,
-    marginBottom: 20,
-    padding: 16,
-    borderRadius: 12,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
-  },
-  orgInfo: {
-    marginLeft: 12,
-    flex: 1,
-  },
-  orgName: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1C1C1E',
-  },
-  orgCreated: {
-    fontSize: 14,
-    color: '#8E8E93',
-    marginTop: 2,
   },
   sectionTitle: {
     fontSize: 20,
