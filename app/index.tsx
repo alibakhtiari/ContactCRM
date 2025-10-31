@@ -1,26 +1,29 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { useAuth } from '../hooks/useAuth';
-import { Redirect } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function Index() {
   const { user, loading } = useAuth();
+  const router = useRouter();
   const insets = useSafeAreaInsets();
 
-  if (loading) {
-    return (
-      <View style={[styles.container, { paddingTop: insets.top }]}>
-        <ActivityIndicator size="large" color="#007AFF" />
-      </View>
-    );
-  }
+  useEffect(() => {
+    if (!loading) {
+      if (user) {
+        router.replace('/(tabs)');
+      } else {
+        router.replace('/login');
+      }
+    }
+  }, [user, loading]);
 
-  if (user) {
-    return <Redirect href="/(tabs)" />;
-  }
-
-  return <Redirect href="/login" />;
+  return (
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <ActivityIndicator size="large" color="#007AFF" />
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({

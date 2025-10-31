@@ -1,5 +1,5 @@
 import React from 'react';
-import { Tabs } from 'expo-router';
+import { Tabs, useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Platform, TouchableOpacity, Text } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -7,11 +7,17 @@ import { useAuth } from '../../hooks/useAuth';
 
 export default function TabLayout() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const { signOut } = useAuth();
+
+  const handleLogout = async () => {
+    await signOut();
+    router.replace('/login');
+  };
 
   const LogoutButton = () => (
     <TouchableOpacity 
-      onPress={signOut}
+      onPress={handleLogout}
       style={{ 
         marginRight: 15, 
         backgroundColor: '#FF3B30', 

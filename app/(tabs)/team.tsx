@@ -171,6 +171,8 @@ export default function TeamScreen() {
   };
 
   useEffect(() => {
+    // Refresh user profile to get latest role
+    refreshProfile();
     loadTeamMembers();
   }, []);
 
@@ -220,7 +222,7 @@ export default function TeamScreen() {
           
           <TouchableOpacity 
             style={styles.logoutButton} 
-            onPress={() => {
+            onPress={async () => {
               showAlert(
                 'Logout',
                 'Are you sure you want to logout?',
@@ -229,7 +231,9 @@ export default function TeamScreen() {
                   { 
                     text: 'Logout', 
                     style: 'destructive',
-                    onPress: signOut
+                    onPress: async () => {
+                      await signOut();
+                    }
                   }
                 ]
               );
