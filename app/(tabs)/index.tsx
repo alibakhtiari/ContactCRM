@@ -31,6 +31,7 @@ export default function ContactsScreen() {
     contacts, 
     loading, 
     refreshing,
+    backgroundSyncEnabled,
     addContact, 
     updateContact, 
     deleteContact,
@@ -148,6 +149,7 @@ export default function ContactsScreen() {
           <Text style={styles.title}>Contacts</Text>
           <Text style={styles.subtitle}>
             {userProfile?.role || 'User'} • {contacts.length} contacts
+            {backgroundSyncEnabled && ' • 🔄'}
           </Text>
         </View>
         <TouchableOpacity style={styles.profileButton} onPress={signOut}>

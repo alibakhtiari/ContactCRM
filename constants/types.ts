@@ -42,6 +42,7 @@ export interface ContactContextType {
   calls: Call[];
   loading: boolean;
   refreshing: boolean;
+  backgroundSyncEnabled: boolean;
   addContact: (name: string, phoneNumber: string) => Promise<{ success: boolean; error?: string }>;
   updateContact: (contactId: string, name: string, phoneNumber: string) => Promise<{ success: boolean; error?: string }>;
   deleteContact: (contactId: string) => Promise<{ success: boolean; error?: string }>;

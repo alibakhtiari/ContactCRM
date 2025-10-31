@@ -1,8 +1,10 @@
 import React, { createContext, useEffect, useState, ReactNode } from 'react';
+import { AppState, AppStateStatus } from 'react-native';
 import { ContactService } from '../services/contactService';
 import { supabase } from '../services/supabaseClient';
 import { Contact, Call, ContactContextType } from '../constants/types';
 import { useAuth } from '../hooks/useAuth';
+import { BackgroundSyncService } from '../services/backgroundSync';
 
 export const ContactContext = createContext<ContactContextType | undefined>(undefined);
 
@@ -12,6 +14,7 @@ export function ContactProvider({ children }: { children: ReactNode }) {
   const [calls, setCalls] = useState<Call[]>([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [backgroundSyncEnabled, setBackgroundSyncEnabled] = useState(false);
 
   const loadData = async () => {
     if (!userProfile?.id) return;
@@ -114,6 +117,28 @@ export function ContactProvider({ children }: { children: ReactNode }) {
     if (userProfile?.id) {
       loadData();
 
+      // Register background sync
+      BackgroundSyncService.registerBackgroundSync().then(result => {
+        if (result.success) {
+          setBackgroundSyncEnabled(true);
+          console.log('Background sync enabled');
+        } else {
+          console.log('Background sync not available:', result.error);
+        }
+      });
+
+      // Handle app state changes
+      const appStateSubscription = AppState.addEventListener(
+        'change',
+        (nextAppState: AppStateStatus) => {
+          if (nextAppState === 'active') {
+            // App came to foreground - refresh data
+            console.log('App active - refreshing data');
+            loadData();
+          }
+        }
+      );
+
       // Set up real-time subscriptions
       const contactsSubscription = supabase
         .channel('contacts_changes')
@@ -146,6 +171,7 @@ export function ContactProvider({ children }: { children: ReactNode }) {
         .subscribe();
 
       return () => {
+        appStateSubscription.remove();
         contactsSubscription.unsubscribe();
         callsSubscription.unsubscribe();
       };
@@ -157,6 +183,7 @@ export function ContactProvider({ children }: { children: ReactNode }) {
     calls,
     loading,
     refreshing,
+    backgroundSyncEnabled,
     addContact,
     updateContact,
     deleteContact,
