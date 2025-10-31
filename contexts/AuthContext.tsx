@@ -14,14 +14,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       console.log('Fetching user data for:', userId);
       
-      // Direct query instead of using ContactService
+      // Fetch user profile
       const { data: profile, error: profileError } = await supabase
         .from('user_profiles')
         .select('*')
         .eq('id', userId)
         .single();
       
-      console.log('Direct profile query result:', { profile, profileError });
+      console.log('Profile query result:', { profile, profileError });
       
       if (profileError) {
         console.error('Profile fetch error:', profileError);
@@ -29,7 +29,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       
       if (profile) {
-        console.log('Setting userProfile to:', profile);
+        console.log('User profile loaded:', profile);
+        console.log('User role:', profile.role);
         setUserProfile(profile);
       }
     } catch (error) {

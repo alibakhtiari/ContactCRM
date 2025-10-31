@@ -18,7 +18,7 @@ import { Call } from '../../constants/types';
 
 export default function CallsScreen() {
   const insets = useSafeAreaInsets();
-  const { userProfile, organization } = useAuth();
+  const { userProfile } = useAuth();
   const { calls, contacts, refreshing, refreshContacts, logCall } = useContacts();
 
   const handleCall = async (phoneNumber: string) => {
@@ -72,7 +72,7 @@ export default function CallsScreen() {
         <View>
           <Text style={styles.title}>Call Log</Text>
           <Text style={styles.subtitle}>
-            {calls.length} {calls.length === 1 ? 'call' : 'calls'} • {organization?.name}
+            {calls.length} {calls.length === 1 ? 'call' : 'calls'}
           </Text>
         </View>
         <TouchableOpacity style={styles.refreshButton} onPress={refreshContacts}>

@@ -26,7 +26,7 @@ export default function ContactsScreen() {
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const insets = useSafeAreaInsets();
   
-  const { userProfile, organization, signOut } = useAuth();
+  const { userProfile, signOut } = useAuth();
   const { 
     contacts, 
     loading, 
@@ -147,7 +147,7 @@ export default function ContactsScreen() {
         <View style={styles.headerLeft}>
           <Text style={styles.title}>Contacts</Text>
           <Text style={styles.subtitle}>
-            {organization?.name} • {userProfile?.role}
+            {userProfile?.role || 'User'} • {contacts.length} contacts
           </Text>
         </View>
         <TouchableOpacity style={styles.profileButton} onPress={signOut}>

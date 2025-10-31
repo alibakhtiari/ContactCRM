@@ -66,13 +66,6 @@ function TeamMemberCard({ member, isCurrentUser, isCurrentUserOwner, onEdit, onD
           <View style={styles.actionButtons}>
             <TouchableOpacity 
               style={styles.actionButton}
-              onPress={() => onEdit?.(member)}
-            >
-              <MaterialIcons name="edit" size={18} color="#007AFF" />
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={styles.actionButton}
               onPress={() => onDelete?.(member)}
             >
               <MaterialIcons name="delete" size={18} color="#FF3B30" />
@@ -185,8 +178,7 @@ export default function TeamScreen() {
     <TeamMemberCard
       member={item}
       isCurrentUser={item.id === userProfile?.id}
-      isCurrentUserOwner={userProfile?.role === 'Owner'}
-      onEdit={handleEditMember}
+      isCurrentUserOwner={userProfile?.role?.toLowerCase() === 'owner'}
       onDelete={handleDeleteMember}
     />
   );
@@ -212,7 +204,7 @@ export default function TeamScreen() {
           </Text>
         </View>
         <View style={styles.headerActions}>
-          {userProfile?.role === 'Owner' && (
+          {(userProfile?.role?.toLowerCase() === 'owner') && (
             <TouchableOpacity 
               style={styles.addTeamButton} 
               onPress={() => setShowAddUserForm(true)}
