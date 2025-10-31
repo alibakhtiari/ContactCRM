@@ -178,3 +178,6 @@ If you want enhanced manual logging:
 2. Create home screen widget
 3. Improve logging UX with templates
 4. Add bulk import from native call log (with permission)
+
+
+test
