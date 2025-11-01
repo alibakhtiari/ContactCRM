@@ -39,3 +39,5 @@ yarn-error.*
 app-example
 pnpm-lock.yaml
 package-lock.json
+*.aab
+*.apk
