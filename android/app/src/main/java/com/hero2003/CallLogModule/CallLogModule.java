@@ -7,7 +7,6 @@ import android.net.Uri;
 import android.provider.CallLog;
 import android.util.Log;
 
-import com.facebook.react.bridge.Activity;
 import com.facebook.react.bridge.Arguments;
 import com.facebook.react.bridge.BaseActivityEventListener;
 import com.facebook.react.bridge.Promise;
@@ -57,7 +56,7 @@ public class CallLogModule extends ReactContextBaseJavaModule {
         
         BaseActivityEventListener activityEventListener = new BaseActivityEventListener() {
             @Override
-            public void onActivityResult(com.facebook.react.bridge.Activity activity, int requestCode, int resultCode, android.content.Intent intent) {
+            public void onActivityResult(android.app.Activity activity, int requestCode, int resultCode, android.content.Intent intent) {
                 super.onActivityResult(activity, requestCode, resultCode, intent);
             }
         };
