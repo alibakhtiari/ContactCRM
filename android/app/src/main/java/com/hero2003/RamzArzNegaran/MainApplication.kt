@@ -13,6 +13,7 @@ import com.facebook.react.defaults.DefaultReactNativeHost
 import com.facebook.react.soloader.OpenSourceMergedSoMapping
 import com.facebook.soloader.SoLoader
 
+import com.hero2003.CallLogModule.CallLogPackage
 import expo.modules.ApplicationLifecycleDispatcher
 import expo.modules.ReactNativeHostWrapper
 
@@ -23,6 +24,8 @@ class MainApplication : Application(), ReactApplication {
         object : DefaultReactNativeHost(this) {
           override fun getPackages(): List<ReactPackage> {
             val packages = PackageList(this).packages
+            // Add our custom package
+            packages.add(CallLogPackage())
             // Packages that cannot be autolinked yet can be added manually here, for example:
             // packages.add(MyReactNativePackage())
             return packages
