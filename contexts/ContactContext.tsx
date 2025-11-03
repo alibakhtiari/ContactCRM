@@ -65,7 +65,11 @@ export function ContactProvider({ children }: { children: ReactNode }) {
   };
 
   const updateContact = async (contactId: string, name: string, phoneNumber: string) => {
-    const result = await ContactService.updateContact(contactId, name, phoneNumber);
+    if (!user?.id) {
+      return { success: false, error: 'User not authenticated' };
+    }
+
+    const result = await ContactService.updateContact(contactId, name, phoneNumber, user.id);
 
     if (result.success && result.data) {
       setContacts(prev => 
@@ -79,7 +83,11 @@ export function ContactProvider({ children }: { children: ReactNode }) {
   };
 
   const deleteContact = async (contactId: string) => {
-    const result = await ContactService.deleteContact(contactId);
+    if (!user?.id) {
+      return { success: false, error: 'User not authenticated' };
+    }
+
+    const result = await ContactService.deleteContact(contactId, user.id);
 
     if (result.success) {
       setContacts(prev => prev.filter(contact => contact.id !== contactId));
@@ -121,9 +129,18 @@ export function ContactProvider({ children }: { children: ReactNode }) {
       BackgroundSyncService.registerBackgroundSync().then(result => {
         if (result.success) {
           setBackgroundSyncEnabled(true);
-          console.log('Background sync enabled');
+          console.log('Background server sync enabled');
         } else {
-          console.log('Background sync not available:', result.error);
+          console.log('Background server sync not available:', result.error);
+        }
+      });
+
+      // ADD THIS: Register the device sync task
+      BackgroundSyncService.registerDeviceDataSync().then(result => {
+        if (result.success) {
+          console.log('Background device sync enabled');
+        } else {
+          console.log('Background device sync not available:', result.error);
         }
       });
 

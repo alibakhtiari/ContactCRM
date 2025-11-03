@@ -1,6 +1,7 @@
 import { supabase } from './supabaseClient';
 import { Contact, Call, UserProfile } from '../constants/types';
 import { normalizeIranianPhoneNumber, arePhoneNumbersEqual } from './phoneNumberUtils';
+import * as Contacts from 'expo-contacts';
 
 export class ContactService {
   static async fetchContacts(): Promise<Contact[]> {
@@ -48,7 +49,7 @@ export class ContactService {
       return { success: true, data: existingContact };
     }
 
-    // Create new contact with normalized number
+    // 1. Create in Supabase
     const { data, error } = await supabase
       .from('contacts')
       .insert({
@@ -61,6 +62,21 @@ export class ContactService {
 
     if (error) {
       return { success: false, error: error.message };
+    }
+
+    // 2. Create on Device
+    try {
+      const contact = {
+        [Contacts.Fields.FirstName]: name.trim(),
+        phoneNumbers: [{
+          label: 'mobile',
+          number: normalizedPhone.normalized,
+        }],
+      };
+      await Contacts.addContactAsync(contact);
+    } catch (deviceError: any) {
+      console.warn('Failed to add contact to device, but saved to server:', deviceError.message);
+      // Don't return an error, as the server-side was successful
     }
 
     return { success: true, data };
@@ -107,6 +123,7 @@ export class ContactService {
       }
     }
 
+    // 1. Update in Supabase
     const { data, error } = await supabase
       .from('contacts')
       .update({
@@ -122,25 +139,56 @@ export class ContactService {
       return { success: false, error: error.message };
     }
 
+    // 2. Update on Device
+    try {
+      // Find the device contact to update (this is tricky, as we don't store the device contact ID)
+      // We'll search by phone number. This is imperfect but the best we can do.
+      const { data: deviceContacts } = await Contacts.getContactsAsync({
+        fields: [Contacts.Fields.PhoneNumbers],
+        phoneNumbers: [normalizedPhone.normalized],
+      });
+
+      if (deviceContacts.length > 0) {
+        const deviceContact = deviceContacts[0];
+        deviceContact.firstName = name.trim();
+        // You may need more logic here to find and update the *correct* phone number
+        // For this example, we assume it's the first one.
+        if (deviceContact.phoneNumbers && deviceContact.phoneNumbers.length > 0) {
+          deviceContact.phoneNumbers[0].number = normalizedPhone.normalized;
+        }
+        await Contacts.updateContactAsync(deviceContact);
+      }
+    } catch (deviceError: any) {
+      console.warn('Failed to update contact on device, but saved to server:', deviceError.message);
+    }
+
     return { success: true, data };
   }
 
   static async deleteContact(contactId: string, userId: string): Promise<{ success: boolean; error?: string }> {
-    // Check if user owns this contact
-    const { data: contactToCheck } = await supabase
+    // Get phone number before deleting
+    const { data: contactToDelete } = await supabase
       .from('contacts')
-      .select('created_by_user_id, name')
+      .select('id, phone_number')
       .eq('id', contactId)
       .single();
 
-    if (!contactToCheck) {
+    if (!contactToDelete) {
       return { success: false, error: 'Contact not found' };
     }
 
-    if (contactToCheck.created_by_user_id !== userId) {
+    // Check ownership
+    const { data: contactToCheck } = await supabase
+      .from('contacts')
+      .select('created_by_user_id')
+      .eq('id', contactId)
+      .single();
+
+    if (!contactToCheck || contactToCheck.created_by_user_id !== userId) {
       return { success: false, error: 'You can only delete your own contacts' };
     }
 
+    // 1. Delete from Supabase
     const { error } = await supabase
       .from('contacts')
       .delete()
@@ -148,6 +196,20 @@ export class ContactService {
 
     if (error) {
       return { success: false, error: error.message };
+    }
+
+    // 2. Delete from Device
+    try {
+      const { data: deviceContacts } = await Contacts.getContactsAsync({
+        fields: [Contacts.Fields.PhoneNumbers],
+        phoneNumbers: [contactToDelete.phone_number],
+      });
+
+      if (deviceContacts.length > 0) {
+        await Contacts.removeContactAsync(deviceContacts[0].id);
+      }
+    } catch (deviceError: any) {
+      console.warn('Failed to delete contact from device, but removed from server:', deviceError.message);
     }
 
     return { success: true };

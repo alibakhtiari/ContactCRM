@@ -1,8 +1,10 @@
 import React, { createContext, useEffect, useState, ReactNode } from 'react';
 import { supabase } from '../services/supabaseClient';
 import { AuthContextType, UserProfile } from '../constants/types';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const USER_ID_KEY = 'auth-user-id';
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<any>(null);
@@ -45,8 +47,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-
-
   const signIn = async (email: string, password: string) => {
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
@@ -64,6 +64,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(null);
       setSession(null);
       setUserProfile(null);
+      
+      // Remove user ID from storage
+      await AsyncStorage.removeItem(USER_ID_KEY);
       
       // Then sign out from Supabase
       const { error } = await supabase.auth.signOut();
@@ -104,8 +107,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         if (session?.user) {
           await fetchUserData(session.user.id);
+          // Save user ID to storage
+          await AsyncStorage.setItem(USER_ID_KEY, session.user.id);
         } else {
           setUserProfile(null);
+          // Remove user ID from storage
+          await AsyncStorage.removeItem(USER_ID_KEY);
         }
         setLoading(false);
       }

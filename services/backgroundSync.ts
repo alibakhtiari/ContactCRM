@@ -3,9 +3,11 @@ import * as TaskManager from 'expo-task-manager';
 import { ContactService } from './contactService';
 import { AndroidCallLogService } from './androidCallLogService';
 import { Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const BACKGROUND_SYNC_TASK = 'background-contacts-sync';
 const DEVICE_SYNC_TASK = 'device-data-sync';
+const USER_ID_KEY = 'auth-user-id';
 
 // Define the background task for server sync
 TaskManager.defineTask(BACKGROUND_SYNC_TASK, async () => {
@@ -32,9 +34,27 @@ TaskManager.defineTask(DEVICE_SYNC_TASK, async () => {
   try {
     console.log('Background device sync task started');
     
-    // This will be implemented when we have user context
-    // For now, just return success to keep the task registered
-    return BackgroundFetch.BackgroundFetchResult.NewData;
+    // 1. Get user ID from storage
+    const userId = await AsyncStorage.getItem(USER_ID_KEY);
+    
+    if (!userId) {
+      console.log('Background device sync: No user ID found, skipping.');
+      return BackgroundFetch.BackgroundFetchResult.NoData;
+    }
+
+    console.log(`Background device sync: Running for user ${userId}`);
+    
+    // 2. Run the sync function
+    const result = await BackgroundSyncService.syncAllDeviceData(userId);
+
+    if (result.success) {
+      console.log('Background device sync completed successfully.');
+      return BackgroundFetch.BackgroundFetchResult.NewData;
+    } else {
+      console.error('Background device sync failed:', result.errors);
+      return BackgroundFetch.BackgroundFetchResult.Failed;
+    }
+
   } catch (error) {
     console.error('Background device sync error:', error);
     return BackgroundFetch.BackgroundFetchResult.Failed;
@@ -80,7 +100,7 @@ export class BackgroundSyncService {
       
       if (status === BackgroundFetch.BackgroundFetchStatus.Available) {
         await BackgroundFetch.registerTaskAsync(DEVICE_SYNC_TASK, {
-          minimumInterval: 30 * 60, // 30 minutes for device sync
+          minimumInterval: 15 * 60, // 15 minutes
           stopOnTerminate: false,
           startOnBoot: true,
         });
@@ -311,7 +331,11 @@ export class BackgroundSyncService {
     }
   }
 
-  private static getStatusText(status: BackgroundFetch.BackgroundFetchStatus): string {
+  private static getStatusText(status: BackgroundFetch.BackgroundFetchStatus | null): string {
+    if (status === null) {
+      return 'Unknown';
+    }
+    
     switch (status) {
       case BackgroundFetch.BackgroundFetchStatus.Available:
         return 'Available';

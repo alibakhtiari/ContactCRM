@@ -17,6 +17,8 @@ import { supabase } from '../../services/supabaseClient';
 import { UserProfile } from '../../constants/types';
 import { AddUserForm } from '../../components/AddUserForm';
 import { UserService } from '../../services/userService';
+import { AndroidCallLogService } from '../../services/androidCallLogService';
+import { BackgroundSyncService } from '../../services/backgroundSync';
 
 interface TeamMemberCardProps {
   member: UserProfile;
@@ -81,6 +83,7 @@ export default function TeamScreen() {
   const [teamMembers, setTeamMembers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(false);
   const [showAddUserForm, setShowAddUserForm] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
   const insets = useSafeAreaInsets();
   const { userProfile, refreshProfile, signOut } = useAuth();
 
@@ -174,6 +177,17 @@ export default function TeamScreen() {
     // Refresh user profile to get latest role
     refreshProfile();
     loadTeamMembers();
+    
+    // Request permissions when this screen loads
+    if (Platform.OS === 'android') {
+      AndroidCallLogService.requestPermissions().then(granted => {
+        if (granted) {
+          console.log('All permissions granted');
+        } else {
+          console.warn('Some permissions were denied');
+        }
+      });
+    }
   }, []);
 
   const renderTeamMember = ({ item }: { item: UserProfile }) => (
@@ -188,12 +202,29 @@ export default function TeamScreen() {
   const renderEmptyState = () => (
     <View style={styles.emptyState}>
       <MaterialIcons name="group" size={64} color="#C7C7CC" />
-      <Text style={styles.emptyTitle}>Loading Team...</Text>
+      <Text style={styles.emptyTitle}>No Team Members</Text>
       <Text style={styles.emptyMessage}>
         Team members will appear here
       </Text>
     </View>
   );
+
+  const handleManualSync = async () => {
+    if (!userProfile?.id) return;
+    setIsSyncing(true);
+    
+    const result = await BackgroundSyncService.syncAllDeviceData(userProfile.id);
+    
+    setIsSyncing(false);
+    
+    if (result.success) {
+      showAlert('Sync Complete', `Synced ${result.contacts.added} new contacts and ${result.calls.synced} new calls.`);
+      // Refresh the context data
+      loadTeamMembers(); // You might want to refresh contacts/calls context here too
+    } else {
+      showAlert('Sync Failed', result.errors.join('\n'));
+    }
+  };
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -215,6 +246,19 @@ export default function TeamScreen() {
               <Text style={styles.addTeamText}>Add Member</Text>
             </TouchableOpacity>
           )}
+          
+          {/* ADD THIS SYNC BUTTON */}
+          <TouchableOpacity 
+            style={styles.refreshButton} 
+            onPress={handleManualSync} 
+            disabled={isSyncing}
+          >
+            <MaterialIcons 
+              name={isSyncing ? "sync" : "sync-disabled"} 
+              size={24} 
+              color={isSyncing ? "#8E8E93" : "#007AFF"} 
+            />
+          </TouchableOpacity>
           
           <TouchableOpacity style={styles.refreshButton} onPress={loadTeamMembers}>
             <MaterialIcons name="refresh" size={24} color="#007AFF" />
