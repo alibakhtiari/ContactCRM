@@ -348,3 +348,9 @@ Required environment variables:
 
 Optional environment variables:
 - `EXPO_PUBLIC_APP_ENV`: Environment (development, staging, production)
+
+development build
+NODE_ENV=development eas build --platform android --local
+
+npx expo install --check
+npx expo install --fix
