@@ -32,6 +32,8 @@ export interface AuthContextType {
   session: any | null;
   userProfile: UserProfile | null;
   loading: boolean;
+  error: string | null;
+  timeoutReached: boolean;
   signIn: (email: string, password: string) => Promise<{ data: any; error: any }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
