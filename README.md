@@ -351,6 +351,7 @@ Optional environment variables:
 
 development build
 NODE_ENV=development eas build --platform android --local
+eas build --profile development --platform android --local
 
 npx expo install --check
 npx expo install --fix
