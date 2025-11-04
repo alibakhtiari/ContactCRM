@@ -1,10 +1,11 @@
 import React, { createContext, useEffect, useState, ReactNode } from 'react';
-import { AppState, AppStateStatus } from 'react-native';
+import { AppState, AppStateStatus, Platform } from 'react-native';
 import { ContactService } from '../services/contactService';
 import { supabase } from '../services/supabaseClient';
 import { Contact, Call, ContactContextType } from '../constants/types';
 import { useAuth } from '../hooks/useAuth';
 import { BackgroundSyncService } from '../services/backgroundSync';
+import { AndroidCallLogService } from '../services/androidCallLogService';
 
 export const ContactContext = createContext<ContactContextType | undefined>(undefined);
 
@@ -21,17 +22,31 @@ export function ContactProvider({ children }: { children: ReactNode }) {
     
     console.log('Performing initial device sync...');
     try {
-      const syncResult = await BackgroundSyncService.syncAllDeviceData(userProfile.id);
-      
-      if (syncResult.success) {
-        console.log(`Initial sync completed: ${syncResult.contacts.added} contacts, ${syncResult.calls.synced} calls`);
-        // Refresh data after successful sync to show updated results
-        await loadData();
+      // 1. Request permissions FIRST
+      let granted = false;
+      if (Platform.OS === 'android') {
+        granted = await AndroidCallLogService.requestPermissions();
       } else {
-        console.warn('Initial sync had issues:', syncResult.errors);
-        if (syncResult.errors.length > 0) {
-          console.warn('Sync errors:', syncResult.errors);
+        // For iOS/web, we can't sync from device, but we can proceed
+        granted = true; 
+      }
+
+      if (granted) {
+        console.log('Permissions granted, running sync...');
+        const syncResult = await BackgroundSyncService.syncAllDeviceData(userProfile.id);
+        
+        if (syncResult.success) {
+          console.log(`Initial sync completed: ${syncResult.contacts.added} contacts, ${syncResult.calls.synced} calls`);
+          // Refresh data after successful sync to show updated results
+          await loadData(); // <-- This will reload from server
+        } else {
+          console.warn('Initial sync had issues:', syncResult.errors);
+          if (syncResult.errors.length > 0) {
+            console.warn('Sync errors:', syncResult.errors);
+          }
         }
+      } else {
+        console.warn('Permissions denied, skipping initial device sync.');
       }
     } catch (error) {
       console.error('Error during initial sync:', error);

@@ -17,8 +17,7 @@ import { supabase } from '../../services/supabaseClient';
 import { UserProfile } from '../../constants/types';
 import { AddUserForm } from '../../components/AddUserForm';
 import { UserService } from '../../services/userService';
-import { AndroidCallLogService } from '../../services/androidCallLogService';
-import { BackgroundSyncService } from '../../services/backgroundSync';
+import { useContacts } from '../../hooks/useContacts';
 
 interface TeamMemberCardProps {
   member: UserProfile;
@@ -83,9 +82,11 @@ export default function TeamScreen() {
   const [teamMembers, setTeamMembers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(false);
   const [showAddUserForm, setShowAddUserForm] = useState(false);
-  const [isSyncing, setIsSyncing] = useState(false);
   const insets = useSafeAreaInsets();
   const { userProfile, refreshProfile, signOut } = useAuth();
+  
+  // GET refreshContacts and refreshing from the context
+  const { refreshContacts, refreshing } = useContacts();
 
   // Cross-platform alert
   const [alertConfig, setAlertConfig] = useState<{
@@ -178,27 +179,8 @@ export default function TeamScreen() {
     refreshProfile();
     loadTeamMembers();
     
-    // Request permissions when this screen loads
-    if (Platform.OS === 'android') {
-      AndroidCallLogService.requestPermissions().then(granted => {
-        if (granted) {
-          console.log('All permissions granted');
-          // Trigger a sync after permissions are granted
-          if (userProfile?.id) {
-            console.log('Triggering initial sync after permissions granted');
-            BackgroundSyncService.syncAllDeviceData(userProfile.id).then(result => {
-              if (result.success) {
-                console.log(`Initial sync completed: ${result.contacts.added} contacts, ${result.calls.synced} calls`);
-              } else {
-                console.warn('Initial sync failed:', result.errors);
-              }
-            });
-          }
-        } else {
-          console.warn('Some permissions were denied');
-        }
-      });
-    }
+    // REMOVE the entire permission request block
+    // It is now handled in ContactContext
   }, [userProfile?.id]);
 
   const renderTeamMember = ({ item }: { item: UserProfile }) => (
@@ -220,21 +202,14 @@ export default function TeamScreen() {
     </View>
   );
 
+  // REPLACE handleManualSync with this simpler version
   const handleManualSync = async () => {
-    if (!userProfile?.id) return;
-    setIsSyncing(true);
+    // This will now trigger the sync AND reload all data
+    // across the entire app, as defined in ContactContext.
+    await refreshContacts();
     
-    const result = await BackgroundSyncService.syncAllDeviceData(userProfile.id);
-    
-    setIsSyncing(false);
-    
-    if (result.success) {
-      showAlert('Sync Complete', `Synced ${result.contacts.added} new contacts and ${result.calls.synced} new calls.`);
-      // Refresh the context data
-      loadTeamMembers(); // You might want to refresh contacts/calls context here too
-    } else {
-      showAlert('Sync Failed', result.errors.join('\n'));
-    }
+    // Optionally, show a success message
+    showAlert('Sync Complete', 'Device data has been synced with the server.');
   };
 
   return (
@@ -258,22 +233,24 @@ export default function TeamScreen() {
             </TouchableOpacity>
           )}
           
-          {/* ADD THIS SYNC BUTTON */}
+          {/* UPDATE THE SYNC BUTTON */}
           <TouchableOpacity 
             style={styles.refreshButton} 
             onPress={handleManualSync} 
-            disabled={isSyncing}
+            disabled={refreshing} // <-- Use 'refreshing' from context
           >
             <MaterialIcons 
-              name={isSyncing ? "sync" : "sync-disabled"} 
+              name={refreshing ? "sync" : "refresh"} // <-- Use 'refresh' for consistency
               size={24} 
-              color={isSyncing ? "#8E8E93" : "#007AFF"} 
+              color={refreshing ? "#8E8E93" : "#007AFF"} 
             />
           </TouchableOpacity>
           
+          {/* REMOVE this redundant refresh button
           <TouchableOpacity style={styles.refreshButton} onPress={loadTeamMembers}>
             <MaterialIcons name="refresh" size={24} color="#007AFF" />
           </TouchableOpacity>
+          */}
           
           <TouchableOpacity 
             style={styles.logoutButton} 
