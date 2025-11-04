@@ -116,9 +116,7 @@ public class CallLogModule extends ReactContextBaseJavaModule {
             
             String[] permissions = {
                 Manifest.permission.READ_PHONE_STATE,
-                Manifest.permission.READ_CALL_LOG,
-                Manifest.permission.READ_CONTACTS,
-                Manifest.permission.WRITE_CONTACTS
+                Manifest.permission.READ_CALL_LOG
             };
 
             Log.d(TAG, "Requesting permissions: " + String.join(", ", permissions));
@@ -299,8 +297,7 @@ public class CallLogModule extends ReactContextBaseJavaModule {
      */
     private boolean hasRequiredPermissions() {
         String[] requiredPermissions = {
-            Manifest.permission.READ_CALL_LOG,
-            Manifest.permission.READ_CONTACTS
+            Manifest.permission.READ_CALL_LOG
         };
         
         for (String permission : requiredPermissions) {
@@ -322,9 +319,7 @@ public class CallLogModule extends ReactContextBaseJavaModule {
             
             String[] requiredPermissions = {
                 Manifest.permission.READ_PHONE_STATE,
-                Manifest.permission.READ_CALL_LOG,
-                Manifest.permission.READ_CONTACTS,
-                Manifest.permission.WRITE_CONTACTS
+                Manifest.permission.READ_CALL_LOG
             };
             
             for (String permission : requiredPermissions) {

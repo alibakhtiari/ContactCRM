@@ -1,5 +1,6 @@
 import React, { createContext, useEffect, useState, ReactNode, useRef, useCallback } from 'react';
 import { AppState, AppStateStatus, Platform } from 'react-native';
+import * as Contacts from 'expo-contacts';
 import { ContactService } from '../services/contactService';
 import { supabase } from '../services/supabaseClient';
 import { Contact, Call, ContactContextType } from '../constants/types';
@@ -96,7 +97,20 @@ export function ContactProvider({ children }: { children: ReactNode }) {
       let granted = false;
       if (Platform.OS === 'android') {
         try {
-          granted = await AndroidCallLogService.requestPermissions();
+          // 1. Ask for Contact permissions (Read/Write) from expo-contacts
+          const { status: contactStatus } = await Contacts.requestPermissionsAsync();
+          
+          // 2. Ask for Call Log permissions from our native module
+          const callLogGranted = await AndroidCallLogService.requestPermissions();
+
+          if (contactStatus === 'granted' && callLogGranted) {
+            console.log('All permissions granted (Contacts and Call Log)');
+            granted = true;
+          } else {
+            console.warn('Some permissions were denied.', { contactStatus, callLogGranted });
+            granted = false;
+          }
+          
         } catch (permError) {
           console.warn('Permission request failed:', permError);
           granted = false;
