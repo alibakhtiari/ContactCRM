@@ -87,7 +87,8 @@ public class CallLogModule extends ReactContextBaseJavaModule {
         String[] permissions = {
             android.Manifest.permission.READ_PHONE_STATE,
             android.Manifest.permission.READ_CALL_LOG,
-            android.Manifest.permission.READ_CONTACTS
+            android.Manifest.permission.READ_CONTACTS,
+            android.Manifest.permission.WRITE_CONTACTS
         };
 
         activity.requestPermissions(permissions, PERMISSION_REQUEST_CODE, permissionListener);

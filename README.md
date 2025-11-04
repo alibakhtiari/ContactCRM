@@ -354,3 +354,10 @@ NODE_ENV=development eas build --platform android --local
 
 npx expo install --check
 npx expo install --fix
+
+cd android 
+./gradlew clean
+
+
+npx expo start --clear
+
