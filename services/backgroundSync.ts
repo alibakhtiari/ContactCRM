@@ -189,6 +189,37 @@ export class BackgroundSyncService {
   }
 
   /**
+   * Sync contacts from server to device (for two-way sync)
+   */
+  static async syncContactsToDevice(userId: string): Promise<{
+    success: boolean;
+    added: number;
+    updated: number;
+    errors: string[];
+  }> {
+    try {
+      console.log('Starting server-to-device contact sync');
+      
+      // Import ContactService dynamically to avoid circular dependencies
+      const { ContactService } = await import('./contactService');
+      
+      const syncResult = await ContactService.syncServerContactsToDevice(userId);
+      
+      console.log(`Server-to-device contact sync completed: ${syncResult.added} added, ${syncResult.updated} updated`);
+      
+      return syncResult;
+    } catch (error) {
+      console.error('Error syncing contacts to device:', error);
+      return {
+        success: false,
+        added: 0,
+        updated: 0,
+        errors: [`Server-to-device contact sync failed: ${error}`]
+      };
+    }
+  }
+
+  /**
    * Perform complete device data sync (contacts + call logs)
    */
   static async syncAllDeviceData(userId: string): Promise<{
@@ -209,19 +240,29 @@ export class BackgroundSyncService {
     };
 
     try {
-      // Sync contacts first
-      const contactResult = await this.syncContactsFromDevice(userId);
+      // Step 1: Sync contacts FROM device TO server
+      const deviceToServerResult = await this.syncContactsFromDevice(userId);
       results.contacts = {
-        added: contactResult.added,
-        updated: contactResult.updated,
-        errors: contactResult.errors
+        added: deviceToServerResult.added,
+        updated: deviceToServerResult.updated,
+        errors: deviceToServerResult.errors
       };
-      if (!contactResult.success) {
+      if (!deviceToServerResult.success) {
         results.overallSuccess = false;
-        results.errors.push(...contactResult.errors);
+        results.errors.push(...deviceToServerResult.errors);
       }
 
-      // Sync call logs
+      // Step 2: Sync contacts FROM server TO device (two-way sync)
+      const serverToDeviceResult = await this.syncContactsToDevice(userId);
+      results.contacts.added += serverToDeviceResult.added;
+      results.contacts.updated += serverToDeviceResult.updated;
+      results.contacts.errors.push(...serverToDeviceResult.errors);
+      if (!serverToDeviceResult.success) {
+        results.overallSuccess = false;
+        results.errors.push(...serverToDeviceResult.errors);
+      }
+
+      // Step 3: Sync call logs from device to server
       const callResult = await this.syncCallLogsFromDevice(userId);
       results.calls = {
         synced: callResult.synced,

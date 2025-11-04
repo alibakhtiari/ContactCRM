@@ -183,12 +183,23 @@ export default function TeamScreen() {
       AndroidCallLogService.requestPermissions().then(granted => {
         if (granted) {
           console.log('All permissions granted');
+          // Trigger a sync after permissions are granted
+          if (userProfile?.id) {
+            console.log('Triggering initial sync after permissions granted');
+            BackgroundSyncService.syncAllDeviceData(userProfile.id).then(result => {
+              if (result.success) {
+                console.log(`Initial sync completed: ${result.contacts.added} contacts, ${result.calls.synced} calls`);
+              } else {
+                console.warn('Initial sync failed:', result.errors);
+              }
+            });
+          }
         } else {
           console.warn('Some permissions were denied');
         }
       });
     }
-  }, []);
+  }, [userProfile?.id]);
 
   const renderTeamMember = ({ item }: { item: UserProfile }) => (
     <TeamMemberCard

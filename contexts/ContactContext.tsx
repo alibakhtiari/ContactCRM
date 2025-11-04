@@ -16,16 +16,41 @@ export function ContactProvider({ children }: { children: ReactNode }) {
   const [refreshing, setRefreshing] = useState(false);
   const [backgroundSyncEnabled, setBackgroundSyncEnabled] = useState(false);
 
+  const performInitialSync = async () => {
+    if (!userProfile?.id) return;
+    
+    console.log('Performing initial device sync...');
+    try {
+      const syncResult = await BackgroundSyncService.syncAllDeviceData(userProfile.id);
+      
+      if (syncResult.success) {
+        console.log(`Initial sync completed: ${syncResult.contacts.added} contacts, ${syncResult.calls.synced} calls`);
+        // Refresh data after successful sync to show updated results
+        await loadData();
+      } else {
+        console.warn('Initial sync had issues:', syncResult.errors);
+        if (syncResult.errors.length > 0) {
+          console.warn('Sync errors:', syncResult.errors);
+        }
+      }
+    } catch (error) {
+      console.error('Error during initial sync:', error);
+    }
+  };
+
   const loadData = async () => {
     if (!userProfile?.id) return;
 
     try {
       setLoading(true);
+      
+      // Just load data from server (sync happens separately)
       const [contactsData, callsData] = await Promise.all([
         ContactService.fetchContacts(),
         ContactService.fetchCalls()
       ]);
       
+      console.log(`Loaded ${contactsData.length} contacts and ${callsData.length} calls from server`);
       setContacts(contactsData);
       setCalls(callsData);
     } catch (error) {
@@ -40,7 +65,21 @@ export function ContactProvider({ children }: { children: ReactNode }) {
 
     try {
       setRefreshing(true);
+      
+      // Sync device data first, then refresh from server
+      const syncResult = await BackgroundSyncService.syncAllDeviceData(userProfile.id);
+      if (syncResult.success) {
+        console.log(`Manual sync completed: ${syncResult.contacts.added} contacts, ${syncResult.calls.synced} calls`);
+        // Show detailed sync results
+        if (syncResult.contacts.added > 0 || syncResult.calls.synced > 0) {
+          console.log(`New data synced: ${syncResult.contacts.added} contacts, ${syncResult.calls.synced} calls`);
+        }
+      }
+      
+      // Load fresh data from server to show synced content
       await loadData();
+    } catch (error) {
+      console.error('Error refreshing data:', error);
     } finally {
       setRefreshing(false);
     }
@@ -58,7 +97,13 @@ export function ContactProvider({ children }: { children: ReactNode }) {
     );
 
     if (result.success && result.data) {
+      // Add to local state immediately for UI responsiveness
       setContacts(prev => [...prev, result.data!]);
+      
+      // Also refresh from server to ensure consistency
+      setTimeout(() => {
+        loadData();
+      }, 500);
     }
 
     return result;
@@ -72,11 +117,17 @@ export function ContactProvider({ children }: { children: ReactNode }) {
     const result = await ContactService.updateContact(contactId, name, phoneNumber, user.id);
 
     if (result.success && result.data) {
+      // Update local state immediately for UI responsiveness
       setContacts(prev => 
         prev.map(contact => 
           contact.id === contactId ? result.data! : contact
         )
       );
+      
+      // Also refresh from server to ensure consistency
+      setTimeout(() => {
+        loadData();
+      }, 500);
     }
 
     return result;
@@ -90,7 +141,13 @@ export function ContactProvider({ children }: { children: ReactNode }) {
     const result = await ContactService.deleteContact(contactId, user.id);
 
     if (result.success) {
+      // Remove from local state immediately for UI responsiveness
       setContacts(prev => prev.filter(contact => contact.id !== contactId));
+      
+      // Also refresh from server to ensure consistency
+      setTimeout(() => {
+        loadData();
+      }, 500);
     }
 
     return result;
@@ -112,7 +169,7 @@ export function ContactProvider({ children }: { children: ReactNode }) {
       duration
     );
 
-    // Refresh calls data
+    // Refresh calls data to show the new call
     const callsData = await ContactService.fetchCalls();
     setCalls(callsData);
   };
@@ -123,7 +180,13 @@ export function ContactProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (userProfile?.id) {
+      // Load data first
       loadData();
+      
+      // Perform initial sync in background (don't wait for it)
+      setTimeout(() => {
+        performInitialSync();
+      }, 1000); // Small delay to let permissions settle
 
       // Register background sync
       BackgroundSyncService.registerBackgroundSync().then(result => {
@@ -135,7 +198,7 @@ export function ContactProvider({ children }: { children: ReactNode }) {
         }
       });
 
-      // ADD THIS: Register the device sync task
+      // Register the device sync task
       BackgroundSyncService.registerDeviceDataSync().then(result => {
         if (result.success) {
           console.log('Background device sync enabled');
@@ -149,9 +212,10 @@ export function ContactProvider({ children }: { children: ReactNode }) {
         'change',
         (nextAppState: AppStateStatus) => {
           if (nextAppState === 'active') {
-            // App came to foreground - refresh data
-            console.log('App active - refreshing data');
+            // App came to foreground - refresh data and sync
+            console.log('App active - refreshing data and syncing');
             loadData();
+            performInitialSync();
           }
         }
       );

@@ -69,7 +69,7 @@ export class ContactService {
       const contact = {
         [Contacts.Fields.FirstName]: name.trim(),
         phoneNumbers: [{
-          label: 'mobile',
+          label: 'mobile' as any,
           number: normalizedPhone.normalized,
         }],
       };
@@ -308,6 +308,8 @@ export class ContactService {
     let updated = 0;
 
     try {
+      console.log(`Starting device contact sync: ${deviceContacts.length} contacts from device`);
+      
       for (const deviceContact of deviceContacts) {
         try {
           const phoneNumber = deviceContact.phoneNumber || 
@@ -330,6 +332,7 @@ export class ContactService {
             if (existingContact.created_by_user_id === userId) {
               // Update if name changed
               if (existingContact.name !== deviceContact.name) {
+                console.log(`Updating contact ${existingContact.name} -> ${deviceContact.name}`);
                 await this.updateContact(existingContact.id, deviceContact.name, phoneNumber, userId);
                 updated++;
               }
@@ -337,6 +340,7 @@ export class ContactService {
             // If different owner, skip (don't overwrite others' contacts)
           } else {
             // Create new contact
+            console.log(`Creating new contact: ${deviceContact.name} (${phoneNumber})`);
             const result = await this.createContact(
               deviceContact.name || 'Unknown',
               phoneNumber,
@@ -354,13 +358,101 @@ export class ContactService {
         }
       }
 
+      console.log(`Device contact sync completed: ${added} added, ${updated} updated, ${errors.length} errors`);
       return { success: true, added, updated, errors };
     } catch (error) {
+      console.error('Device contact sync failed:', error);
       return { 
         success: false, 
         added: 0, 
         updated: 0, 
         errors: [`Sync failed: ${error}`] 
+      };
+    }
+  }
+
+  /**
+   * Sync server contacts to device (two-way sync)
+   */
+  static async syncServerContactsToDevice(userId: string): Promise<{
+    success: boolean;
+    added: number;
+    updated: number;
+    errors: string[];
+  }> {
+    const errors: string[] = [];
+    let added = 0;
+    let updated = 0;
+
+    try {
+      console.log('Starting server-to-device contact sync');
+      
+      // Get server contacts for this user
+      const serverContacts = await this.fetchContacts();
+      console.log(`Found ${serverContacts.length} server contacts for user ${userId}`);
+      
+      // Get existing device contacts
+      const deviceContactsResponse = await Contacts.getContactsAsync({
+        fields: [Contacts.Fields.PhoneNumbers, Contacts.Fields.FirstName],
+      });
+      
+      // Access the contacts array from the response
+      const deviceContacts = deviceContactsResponse.data || [];
+      console.log(`Found ${deviceContacts.length} device contacts`);
+      
+      for (const serverContact of serverContacts) {
+        try {
+          // Find if this contact exists on device
+          const existingDeviceContact = deviceContacts.find((deviceContact: any) => 
+            deviceContact.phoneNumbers?.some((devicePhone: any) => 
+              arePhoneNumbersEqual(devicePhone.number || '', serverContact.phone_number)
+            )
+          );
+
+          if (existingDeviceContact) {
+            // Contact exists on device, check if name needs update
+            if (existingDeviceContact.firstName !== serverContact.name) {
+              console.log(`Updating device contact: ${existingDeviceContact.firstName} -> ${serverContact.name}`);
+              // Create update object with required fields
+              const updateData = {
+                id: existingDeviceContact.id,
+                firstName: serverContact.name,
+                phoneNumbers: existingDeviceContact.phoneNumbers?.map((phone: any) => ({
+                  ...phone,
+                  number: phone.number === serverContact.phone_number ? serverContact.phone_number : phone.number
+                })) || []
+              };
+              await Contacts.updateContactAsync(updateData);
+              updated++;
+            }
+          } else {
+            // Contact doesn't exist on device, create it
+            console.log(`Creating device contact: ${serverContact.name} (${serverContact.phone_number})`);
+            const newContact = {
+              [Contacts.Fields.FirstName]: serverContact.name,
+              phoneNumbers: [{
+                label: 'mobile' as any,
+                number: serverContact.phone_number,
+              }],
+            };
+            await Contacts.addContactAsync(newContact);
+            added++;
+          }
+        } catch (contactError) {
+          console.error('Error syncing server contact to device:', contactError);
+          errors.push(`Error syncing ${serverContact.name}: ${contactError}`);
+        }
+      }
+
+      console.log(`Server-to-device contact sync completed: ${added} added, ${updated} updated, ${errors.length} errors`);
+      return { success: true, added, updated, errors };
+    } catch (error) {
+      console.error('Server-to-device contact sync failed:', error);
+      return {
+        success: false,
+        added: 0,
+        updated: 0,
+        errors: [`Server-to-device sync failed: ${error}`]
       };
     }
   }
