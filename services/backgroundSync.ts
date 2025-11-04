@@ -9,119 +9,221 @@ const BACKGROUND_SYNC_TASK = 'background-contacts-sync';
 const DEVICE_SYNC_TASK = 'device-data-sync';
 const USER_ID_KEY = 'auth-user-id';
 
-// Define the background task for server sync
+// Track sync status to prevent multiple concurrent syncs
+let isSyncing = false;
+let lastSyncTime = 0;
+const SYNC_COOLDOWN = 60000; // 1 minute cooldown between syncs
+
+// Task registration status tracking
+let isTaskRegistered = false;
+
+// Enhanced error logging
+const logError = (context: string, error: any) => {
+  console.error(`[BackgroundSyncService] ${context}:`, error);
+};
+
+// Enhanced success logging
+const logSuccess = (context: string, data: any) => {
+  console.log(`[BackgroundSyncService] ${context}:`, data);
+};
+
+// Define the background task for server sync with enhanced error handling
 TaskManager.defineTask(BACKGROUND_SYNC_TASK, async () => {
   try {
-    console.log('Background server sync task started');
+    logSuccess('Background server sync task started', {});
     
-    // Fetch latest contacts and calls from server
-    const [contacts, calls] = await Promise.all([
-      ContactService.fetchContacts(),
-      ContactService.fetchCalls()
-    ]);
+    // Add cooldown check
+    const now = Date.now();
+    if (now - lastSyncTime < SYNC_COOLDOWN) {
+      logSuccess('Skipping sync due to cooldown', { 
+        lastSync: lastSyncTime, 
+        timeUntilNextSync: SYNC_COOLDOWN - (now - lastSyncTime)
+      });
+      return BackgroundFetch.BackgroundFetchResult.NoData;
+    }
 
-    console.log(`Background server sync completed: ${contacts.length} contacts, ${calls.length} calls`);
-    
-    return BackgroundFetch.BackgroundFetchResult.NewData;
+    // Check if already syncing
+    if (isSyncing) {
+      logSuccess('Skipping sync - already in progress', {});
+      return BackgroundFetch.BackgroundFetchResult.NoData;
+    }
+
+    isSyncing = true;
+    lastSyncTime = now;
+
+    try {
+      // Fetch latest contacts and calls from server with timeout
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Server sync timeout')), 30000); // 30 second timeout
+      });
+
+      const syncPromise = Promise.all([
+        ContactService.fetchContacts(),
+        ContactService.fetchCalls()
+      ]);
+
+      const [contacts, calls] = await Promise.race([syncPromise, timeoutPromise]);
+      
+      logSuccess('Background server sync completed', { 
+        contacts: contacts?.length || 0, 
+        calls: calls?.length || 0 
+      });
+      
+      return BackgroundFetch.BackgroundFetchResult.NewData;
+    } finally {
+      isSyncing = false;
+    }
   } catch (error) {
-    console.error('Background server sync error:', error);
+    logError('Background server sync error', error);
     return BackgroundFetch.BackgroundFetchResult.Failed;
   }
 });
 
-// Define the background task for device sync
+// Define the background task for device sync with enhanced error handling
 TaskManager.defineTask(DEVICE_SYNC_TASK, async () => {
   try {
-    console.log('Background device sync task started');
+    logSuccess('Background device sync task started', {});
     
-    // 1. Get user ID from storage
-    const userId = await AsyncStorage.getItem(USER_ID_KEY);
-    
-    if (!userId) {
-      console.log('Background device sync: No user ID found, skipping.');
+    // Add cooldown check
+    const now = Date.now();
+    if (now - lastSyncTime < SYNC_COOLDOWN) {
+      logSuccess('Skipping device sync due to cooldown', { 
+        lastSync: lastSyncTime, 
+        timeUntilNextSync: SYNC_COOLDOWN - (now - lastSyncTime)
+      });
       return BackgroundFetch.BackgroundFetchResult.NoData;
     }
 
-    console.log(`Background device sync: Running for user ${userId}`);
-    
-    // 2. Run the sync function
-    const result = await BackgroundSyncService.syncAllDeviceData(userId);
+    // Check if already syncing
+    if (isSyncing) {
+      logSuccess('Skipping device sync - already in progress', {});
+      return BackgroundFetch.BackgroundFetchResult.NoData;
+    }
 
-    if (result.success) {
-      console.log('Background device sync completed successfully.');
-      return BackgroundFetch.BackgroundFetchResult.NewData;
-    } else {
-      console.error('Background device sync failed:', result.errors);
-      return BackgroundFetch.BackgroundFetchResult.Failed;
+    isSyncing = true;
+    lastSyncTime = now;
+
+    try {
+      // 1. Get user ID from storage with timeout
+      const userIdPromise = AsyncStorage.getItem(USER_ID_KEY);
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('User ID fetch timeout')), 10000);
+      });
+
+      const userId = await Promise.race([userIdPromise, timeoutPromise]);
+      
+      if (!userId) {
+        logSuccess('Background device sync: No user ID found, skipping', {});
+        return BackgroundFetch.BackgroundFetchResult.NoData;
+      }
+
+      logSuccess('Background device sync: Running for user', { userId });
+
+      // 2. Run the sync function with timeout
+      const syncPromise = BackgroundSyncService.syncAllDeviceData(userId);
+      const syncTimeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Device sync timeout')), 45000); // 45 second timeout
+      });
+
+      const result = await Promise.race([syncPromise, syncTimeoutPromise]);
+
+      if (result.success) {
+        logSuccess('Background device sync completed successfully', result);
+        return BackgroundFetch.BackgroundFetchResult.NewData;
+      } else {
+        logError('Background device sync failed', result.errors);
+        return BackgroundFetch.BackgroundFetchResult.Failed;
+      }
+
+    } finally {
+      isSyncing = false;
     }
 
   } catch (error) {
-    console.error('Background device sync error:', error);
+    logError('Background device sync error', error);
     return BackgroundFetch.BackgroundFetchResult.Failed;
   }
 });
 
 export class BackgroundSyncService {
   /**
-   * Register background sync for server data
+   * Register background sync for server data with enhanced error handling
    */
   static async registerBackgroundSync() {
     try {
       const status = await BackgroundFetch.getStatusAsync();
       
       if (status === BackgroundFetch.BackgroundFetchStatus.Available) {
+        // Check if task is already registered
+        const isRegistered = await TaskManager.isTaskRegisteredAsync(BACKGROUND_SYNC_TASK);
+        if (isRegistered) {
+          logSuccess('Background server sync task already registered', {});
+          return { success: true };
+        }
+
         await BackgroundFetch.registerTaskAsync(BACKGROUND_SYNC_TASK, {
           minimumInterval: 15 * 60, // 15 minutes (minimum allowed)
           stopOnTerminate: false, // Continue after app is closed
           startOnBoot: true, // Start after device reboot
         });
         
-        console.log('Background server sync registered successfully');
+        isTaskRegistered = true;
+        logSuccess('Background server sync registered successfully', {});
         return { success: true };
       } else {
-        console.log('Background fetch not available:', status);
+        const statusText = this.getStatusText(status);
+        logError('Background fetch not available', { status, statusText });
         return { 
           success: false, 
-          error: 'Background sync not available on this device' 
+          error: `Background sync not available: ${statusText}` 
         };
       }
     } catch (error) {
-      console.error('Error registering background sync:', error);
+      logError('Error registering background sync', error);
       return { success: false, error: String(error) };
     }
   }
 
   /**
-   * Register device data sync (call logs and contacts)
+   * Register device data sync with enhanced error handling
    */
   static async registerDeviceDataSync() {
     try {
       const status = await BackgroundFetch.getStatusAsync();
       
       if (status === BackgroundFetch.BackgroundFetchStatus.Available) {
+        // Check if task is already registered
+        const isRegistered = await TaskManager.isTaskRegisteredAsync(DEVICE_SYNC_TASK);
+        if (isRegistered) {
+          logSuccess('Background device data sync task already registered', {});
+          return { success: true };
+        }
+
         await BackgroundFetch.registerTaskAsync(DEVICE_SYNC_TASK, {
           minimumInterval: 15 * 60, // 15 minutes
           stopOnTerminate: false,
           startOnBoot: true,
         });
         
-        console.log('Background device data sync registered successfully');
+        isTaskRegistered = true;
+        logSuccess('Background device data sync registered successfully', {});
         return { success: true };
       } else {
-        console.log('Background fetch not available for device sync:', status);
+        const statusText = this.getStatusText(status);
+        logError('Background fetch not available for device sync', { status, statusText });
         return { 
           success: false, 
-          error: 'Background sync not available on this device' 
+          error: `Background sync not available: ${statusText}` 
         };
       }
     } catch (error) {
-      console.error('Error registering device data sync:', error);
+      logError('Error registering device data sync', error);
       return { success: false, error: String(error) };
     }
   }
 
   /**
-   * Sync call logs from device to Supabase
+   * Enhanced sync call logs from device with timeout and error handling
    */
   static async syncCallLogsFromDevice(userId: string): Promise<{
     success: boolean;
@@ -129,32 +231,48 @@ export class BackgroundSyncService {
     errors: string[];
   }> {
     try {
-      console.log('Starting call log sync from device');
+      logSuccess('Starting call log sync from device', { userId });
       
-      // Check if we have required permissions
-      const hasPermissions = await AndroidCallLogService.hasAllPermissions();
+      // Check permissions first
+      const hasPermissions = await AndroidCallLogService.hasCriticalPermissions();
       if (!hasPermissions) {
-        throw new Error('Required permissions not granted for call log access');
+        const errorMsg = 'Required permissions not granted for call log access';
+        logError('Call log sync permissions check failed', errorMsg);
+        return {
+          success: false,
+          synced: 0,
+          errors: [errorMsg]
+        };
       }
 
-      // Sync call logs
-      const syncResult = await AndroidCallLogService.syncCallLogs(userId);
+      // Add timeout to prevent hanging
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Call log sync timeout')), 30000);
+      });
+
+      const syncPromise = AndroidCallLogService.syncCallLogs(userId);
       
-      console.log(`Call log sync completed: ${syncResult.synced} calls synced`);
+      const syncResult = await Promise.race([syncPromise, timeoutPromise]);
+      
+      logSuccess('Call log sync completed', { 
+        synced: syncResult.synced,
+        success: syncResult.success 
+      });
       
       return syncResult;
     } catch (error) {
-      console.error('Error syncing call logs from device:', error);
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      logError('Error syncing call logs from device', errorMsg);
       return {
         success: false,
         synced: 0,
-        errors: [`Call log sync failed: ${error}`]
+        errors: [`Call log sync failed: ${errorMsg}`]
       };
     }
   }
 
   /**
-   * Sync contacts from device to Supabase
+   * Enhanced sync contacts from device with timeout and error handling
    */
   static async syncContactsFromDevice(userId: string): Promise<{
     success: boolean;
@@ -163,33 +281,51 @@ export class BackgroundSyncService {
     errors: string[];
   }> {
     try {
-      console.log('Starting contact sync from device');
+      logSuccess('Starting contact sync from device', { userId });
       
-      // Check if we have required permissions
-      const hasPermissions = await AndroidCallLogService.hasAllPermissions();
+      // Check permissions first
+      const hasPermissions = await AndroidCallLogService.hasCriticalPermissions();
       if (!hasPermissions) {
-        throw new Error('Required permissions not granted for contacts access');
+        const errorMsg = 'Required permissions not granted for contacts access';
+        logError('Contact sync permissions check failed', errorMsg);
+        return {
+          success: false,
+          added: 0,
+          updated: 0,
+          errors: [errorMsg]
+        };
       }
 
-      // Sync contacts
-      const syncResult = await AndroidCallLogService.syncContacts(userId);
+      // Add timeout to prevent hanging
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Contact sync timeout')), 30000);
+      });
+
+      const syncPromise = AndroidCallLogService.syncContacts(userId);
       
-      console.log(`Contact sync completed: ${syncResult.added} added, ${syncResult.updated} updated`);
+      const syncResult = await Promise.race([syncPromise, timeoutPromise]);
+      
+      logSuccess('Contact sync completed', { 
+        added: syncResult.added,
+        updated: syncResult.updated,
+        success: syncResult.success 
+      });
       
       return syncResult;
     } catch (error) {
-      console.error('Error syncing contacts from device:', error);
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      logError('Error syncing contacts from device', errorMsg);
       return {
         success: false,
         added: 0,
         updated: 0,
-        errors: [`Contact sync failed: ${error}`]
+        errors: [`Contact sync failed: ${errorMsg}`]
       };
     }
   }
 
   /**
-   * Sync contacts from server to device (for two-way sync)
+   * Enhanced sync contacts from server to device with timeout and error handling
    */
   static async syncContactsToDevice(userId: string): Promise<{
     success: boolean;
@@ -198,29 +334,41 @@ export class BackgroundSyncService {
     errors: string[];
   }> {
     try {
-      console.log('Starting server-to-device contact sync');
+      logSuccess('Starting server-to-device contact sync', { userId });
       
       // Import ContactService dynamically to avoid circular dependencies
       const { ContactService } = await import('./contactService');
       
-      const syncResult = await ContactService.syncServerContactsToDevice(userId);
+      // Add timeout to prevent hanging
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Server-to-device sync timeout')), 20000);
+      });
+
+      const syncPromise = ContactService.syncServerContactsToDevice(userId);
       
-      console.log(`Server-to-device contact sync completed: ${syncResult.added} added, ${syncResult.updated} updated`);
+      const syncResult = await Promise.race([syncPromise, timeoutPromise]);
+      
+      logSuccess('Server-to-device contact sync completed', { 
+        added: syncResult.added,
+        updated: syncResult.updated,
+        success: syncResult.success 
+      });
       
       return syncResult;
     } catch (error) {
-      console.error('Error syncing contacts to device:', error);
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      logError('Error syncing contacts to device', errorMsg);
       return {
         success: false,
         added: 0,
         updated: 0,
-        errors: [`Server-to-device contact sync failed: ${error}`]
+        errors: [`Server-to-device contact sync failed: ${errorMsg}`]
       };
     }
   }
 
   /**
-   * Perform complete device data sync (contacts + call logs)
+   * Enhanced complete device data sync with better error handling and queuing
    */
   static async syncAllDeviceData(userId: string): Promise<{
     success: boolean;
@@ -229,8 +377,20 @@ export class BackgroundSyncService {
     overallSuccess: boolean;
     errors: string[];
   }> {
-    console.log('Starting complete device data sync');
+    logSuccess('Starting complete device data sync', { userId });
     
+    // Prevent concurrent sync operations
+    if (isSyncing) {
+      logSuccess('Sync already in progress, skipping', { userId });
+      return {
+        success: true,
+        contacts: { added: 0, updated: 0, errors: [] },
+        calls: { synced: 0, errors: [] },
+        overallSuccess: true,
+        errors: ['Sync already in progress']
+      };
+    }
+
     const results = {
       success: true,
       contacts: { added: 0, updated: 0, errors: [] as string[] },
@@ -238,6 +398,9 @@ export class BackgroundSyncService {
       overallSuccess: true,
       errors: [] as string[]
     };
+
+    isSyncing = true;
+    lastSyncTime = Date.now();
 
     try {
       // Step 1: Sync contacts FROM device TO server
@@ -274,34 +437,46 @@ export class BackgroundSyncService {
       }
 
       results.success = results.overallSuccess;
-      console.log('Complete device sync finished:', results);
+      logSuccess('Complete device sync finished', results);
       return results;
     } catch (error) {
-      console.error('Error during complete device sync:', error);
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      logError('Error during complete device sync', errorMsg);
       results.overallSuccess = false;
       results.success = false;
-      results.errors.push(`Complete sync failed: ${error}`);
+      results.errors.push(`Complete sync failed: ${errorMsg}`);
       return results;
+    } finally {
+      isSyncing = false;
     }
   }
 
   /**
-   * Unregister background sync
+   * Enhanced unregister with error handling
    */
   static async unregisterBackgroundSync() {
     try {
-      await BackgroundFetch.unregisterTaskAsync(BACKGROUND_SYNC_TASK);
-      await BackgroundFetch.unregisterTaskAsync(DEVICE_SYNC_TASK);
-      console.log('Background sync unregistered');
+      const tasks = [BACKGROUND_SYNC_TASK, DEVICE_SYNC_TASK];
+      
+      for (const task of tasks) {
+        try {
+          await BackgroundFetch.unregisterTaskAsync(task);
+          logSuccess('Unregistered background sync task', { task });
+        } catch (error) {
+          logError(`Error unregistering task ${task}`, error);
+        }
+      }
+      
+      isTaskRegistered = false;
       return { success: true };
     } catch (error) {
-      console.error('Error unregistering background sync:', error);
+      logError('Error unregistering background sync', error);
       return { success: false, error: String(error) };
     }
   }
 
   /**
-   * Check background sync status
+   * Enhanced background sync status check
    */
   static async checkBackgroundSyncStatus() {
     try {
@@ -314,22 +489,26 @@ export class BackgroundSyncService {
         deviceTaskRegistered,
         status,
         statusText: this.getStatusText(status),
-        hasAllTasks: serverTaskRegistered && deviceTaskRegistered
+        hasAllTasks: serverTaskRegistered && deviceTaskRegistered,
+        isCurrentlySyncing: isSyncing,
+        lastSyncTime
       };
     } catch (error) {
-      console.error('Error checking background sync status:', error);
+      logError('Error checking background sync status', error);
       return {
         serverTaskRegistered: false,
         deviceTaskRegistered: false,
         status: BackgroundFetch.BackgroundFetchStatus.Denied,
         statusText: 'Error checking status',
-        hasAllTasks: false
+        hasAllTasks: false,
+        isCurrentlySyncing: false,
+        lastSyncTime: 0
       };
     }
   }
 
   /**
-   * Get permission status for device features
+   * Enhanced permission status checking with timeout
    */
   static async getPermissionStatus() {
     const isAndroid = Platform.OS === 'android';
@@ -339,33 +518,57 @@ export class BackgroundSyncService {
         contactsPermission: false,
         phoneStatePermission: false,
         hasAllPermissions: false,
+        hasCriticalPermissions: false,
         isAndroid: false
       };
     }
 
     try {
-      const [callLogPermission, contactsPermission, phoneStatePermission] = await Promise.all([
-        AndroidCallLogService.isPermissionGranted('android.permission.READ_CALL_LOG'),
-        AndroidCallLogService.isPermissionGranted('android.permission.READ_CONTACTS'),
-        AndroidCallLogService.isPermissionGranted('android.permission.READ_PHONE_STATE')
-      ]);
+      // Add timeout to prevent hanging
+      const timeoutPromise = new Promise((resolve) => {
+        setTimeout(() => {
+          logError('Permission status check timed out', {});
+          resolve({
+            callLogPermission: false,
+            contactsPermission: false,
+            phoneStatePermission: false,
+            hasAllPermissions: false,
+            hasCriticalPermissions: false,
+            isAndroid: true,
+            timeout: true
+          });
+        }, 10000);
+      });
 
-      const hasAllPermissions = callLogPermission && contactsPermission && phoneStatePermission;
+      const permissionPromise = (async () => {
+        const [callLogPermission, contactsPermission, phoneStatePermission] = await Promise.all([
+          AndroidCallLogService.isPermissionGranted('android.permission.READ_CALL_LOG'),
+          AndroidCallLogService.isPermissionGranted('android.permission.READ_CONTACTS'),
+          AndroidCallLogService.isPermissionGranted('android.permission.READ_PHONE_STATE')
+        ]);
 
-      return {
-        callLogPermission,
-        contactsPermission,
-        phoneStatePermission,
-        hasAllPermissions,
-        isAndroid: true
-      };
+        const hasAllPermissions = callLogPermission && contactsPermission && phoneStatePermission;
+        const hasCriticalPermissions = callLogPermission && contactsPermission;
+
+        return {
+          callLogPermission,
+          contactsPermission,
+          phoneStatePermission,
+          hasAllPermissions,
+          hasCriticalPermissions,
+          isAndroid: true
+        };
+      })();
+
+      return await Promise.race([permissionPromise, timeoutPromise]);
     } catch (error) {
-      console.error('Error checking permission status:', error);
+      logError('Error checking permission status', error);
       return {
         callLogPermission: false,
         contactsPermission: false,
         phoneStatePermission: false,
         hasAllPermissions: false,
+        hasCriticalPermissions: false,
         isAndroid: true,
         error: String(error)
       };
