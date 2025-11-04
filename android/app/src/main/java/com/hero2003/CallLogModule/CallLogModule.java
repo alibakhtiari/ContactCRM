@@ -136,8 +136,8 @@ public class CallLogModule extends ReactContextBaseJavaModule {
             Log.d(TAG, "Getting call logs");
             
             // Check permissions first
-            if (!hasRequiredPermissions()) {
-                promise.reject("PERMISSION_DENIED", "Required permissions not granted");
+            if (ContextCompat.checkSelfPermission(reactContext, Manifest.permission.READ_CALL_LOG) != PackageManager.PERMISSION_GRANTED) {
+                promise.reject("PERMISSION_DENIED", "READ_CALL_LOG permission not granted");
                 return;
             }
             
@@ -214,8 +214,8 @@ public class CallLogModule extends ReactContextBaseJavaModule {
             Log.d(TAG, "Getting contacts");
             
             // Check permissions first
-            if (!hasRequiredPermissions()) {
-                promise.reject("PERMISSION_DENIED", "Required permissions not granted");
+            if (ContextCompat.checkSelfPermission(reactContext, Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED) {
+                promise.reject("PERMISSION_DENIED", "READ_CONTACTS permission not granted");
                 return;
             }
             
@@ -293,23 +293,6 @@ public class CallLogModule extends ReactContextBaseJavaModule {
     }
 
     /**
-     * Check if we have all required permissions
-     */
-    private boolean hasRequiredPermissions() {
-        String[] requiredPermissions = {
-            Manifest.permission.READ_CALL_LOG
-        };
-        
-        for (String permission : requiredPermissions) {
-            if (ContextCompat.checkSelfPermission(reactContext, permission) 
-                != PackageManager.PERMISSION_GRANTED) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    /**
      * Get detailed permission status
      */
     @ReactMethod
@@ -329,7 +312,6 @@ public class CallLogModule extends ReactContextBaseJavaModule {
                 status.putBoolean(permissionName, granted);
             }
             
-            status.putBoolean("hasAllPermissions", hasRequiredPermissions());
             promise.resolve(status);
         } catch (Exception e) {
             Log.e(TAG, "Error getting permission status", e);

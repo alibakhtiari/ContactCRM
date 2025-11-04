@@ -20,7 +20,7 @@ export function ContactProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
 
   // Refs to prevent multiple concurrent operations and memory leaks
-  const loadDataTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const loadDataTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isLoadingDataRef = useRef(false);
   const isSyncingRef = useRef(false);
   const subscriptionsRef = useRef<any[]>([]);
@@ -367,7 +367,7 @@ export function ContactProvider({ children }: { children: ReactNode }) {
           loadData(8000);
           
           // Only sync if we haven't synced recently (prevent excessive sync)
-          const lastSync = Date.now() - (userIdRef.current ? 60000 : 0); // 1 minute cooldown
+          const lastSync = Date.now() - (userIdRef.current ? 60000 : 0); // 1 minute
           if (Date.now() - lastSync > 60000) {
             performInitialSync();
           }
