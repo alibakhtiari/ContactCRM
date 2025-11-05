@@ -8,9 +8,6 @@
     "scheme": "onspaceapp",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
-    "ios": {
-      "supportsTablet": true
-    },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/logo.png",
@@ -18,11 +15,6 @@
       },
       "edgeToEdgeEnabled": true,
       "package": "com.hero2003.RamzArzNegaran"
-    },
-    "web": {
-      "bundler": "metro",
-      "output": "static",
-      "favicon": "./assets/images/logo.png"
     },
     "plugins": [
       "expo-router",
