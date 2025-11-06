@@ -9,10 +9,16 @@
       "distribution": "internal"
     },
     "preview": {
-      "distribution": "internal"
+      "distribution": "internal",
+      "cache": {
+        "key": "gradle-cache-local",
+        "paths": [
+          "android/.gradle",
+          "~/.gradle/caches"
+        ]
+      }
     },
     "production": {
-      "autoIncrement": true,
       "distribution": "internal"
     }
   },
